@@ -1,0 +1,256 @@
+---
+title: "Housing analysis, September 26th 2023"
+output: 
+  html_document:
+    css: Wil_style.css
+    theme: default
+    toc: TRUE
+    toc_float: TRUE
+    number_sections: TRUE
+always_allow_html: yes
+---
+
+```{r setup_1, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(gglaplot)
+library(ggplot2)
+library(data.table)
+library(lubridate)
+library(tidyr)
+library(png)
+library(stringr)
+library(tidyverse)
+library(plotly)
+library(sf)
+library(scales)
+library(htmlwidgets)
+library(ggplot2)
+library(gglaplot)
+library(ggrepel)
+
+
+#devtools::load_all("C:/demogtools/")
+
+data_dir <- 'C:/Families/Data/'
+chart_dir <- 'C:/Families/Charts/'
+
+
+```
+
+
+
+```{r setup_2, include=FALSE}
+#--------------------------------------------------------------------------------
+
+# DATA FROM 2021 CENSUS
+
+# https://www.ons.gov.uk/peoplepopulationandcommunity/housing/bulletins/housingenglandandwales/census2021
+
+Tenure_Type_London <- read.csv("C:/Families/Housing/TenureType_London.csv") %>%  
+ data.frame()
+
+# Join boroughs data with Inner/Outer file
+
+boroughcodes <- read.csv("C:/Migration/Migration_R/DATA/Domestic/InnerLondon.csv") %>%   
+  data.frame
+
+Tenure_Type_London_Zone <- Tenure_Type_London %>%
+  left_join(boroughcodes, by=c("Area_code"="BoroughCode"))%>% 
+  mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
+  data.frame() 
+
+```
+
+# Geographical variation
+
+
+```{r fig_London_Tenure_map_1, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+
+## Interactive map of main housing type in 2021 in London
+
+# Import LA boundaries for England and Wales
+borough_boundaries <-
+  st_read("C:/Migration/Migration_R/DATA/Domestic/copied_from_Qdrive_20220614/geographical/LAD_DEC_2021_GB_BUC.shp", quiet = TRUE)
+
+# Match boundary data with rentals data and create categories for mapping
+
+TenureType_Boroughs_geog <- Tenure_Type_London_Zone %>% 
+ # filter(grepl('E09', Area_Code)) %>%
+  left_join(borough_boundaries, by=c("Area_code"="LAD21CD")) %>%
+#  filter(Date == "2022_Oct") %>%
+  mutate(Top_Category = case_when(top_category == "owns_mortgage" ~ "Owns with a mortgage or<br>loan or shared ownership", 
+                             top_category == "owns_outright" ~ "Owns outright",
+                             top_category == "rented_social" ~ "Social rented", 
+                             top_category == "rented_private" ~ "Private rented or<br>lives rent free",
+                             TRUE ~ "")) %>% 
+  data.frame()
+
+catcolour4 = c("#3681bf","#89105d","#d3c913","#73a072")
+
+TenureType_Boroughs_map <- TenureType_Boroughs_geog %>%
+  ggplot()+
+  geom_point(aes(x=BNG_E, y=BNG_N, 
+                 text = paste("Borough: ", Area_name,  
+                              "<br>Main tenure type: ", Top_Category,
+                              "<br>Percentage of total: ", percentage )),
+             alpha = 0) +   # alpha = 0 ensures that points are not actually plotted
+  geom_sf(aes(geometry=geometry, fill=Top_Category),lwd = 0.2, colour = "black")+
+  #ggla_sf()+
+  #theme_gla()+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.position = "right")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(plot.caption = element_text (hjust = 0))+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.x = element_blank(), 
+        axis.ticks.y = element_blank())+
+  scale_fill_manual(values = catcolour4) + 
+  labs(title= "<b>Main tenure type, London, 2021<b>", 
+       caption = paste0("Source: ONS, Chart: GLA demography")) +
+  labs(fill = "Category")
+
+# ggsave (filename = (paste0(chart_dir, "Rentals_Boroughs_value_map.png")),
+#          plot = Rentals_Boroughs_map,
+#          device = "png",
+#          dpi=600,
+#          width = 9,
+#          height = 5.56,
+#          units = "in")
+
+# Interactive map using ggplotly
+
+TenureType_Boroughs_map_int <- ggplotly(TenureType_Boroughs_map, tooltip = "text") %>%
+  layout(title= list(x = 0.05,
+                     text = "<b>Main tenure type, London, 2021<b>", 
+                     font=list(size = 15, family = "Arial")),
+         font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+         legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+                     title=list(text='Category',
+                                font = list(family = "Arial", size = 14)),  
+                     font = list(family = "Arial", size = 14))) %>%  
+  # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+  layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography", 
+                            showarrow = F, xref='paper', yref='paper', 
+                            font=list(size=14, family = "Arial")), 
+         margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4)) 
+
+TenureType_Boroughs_map_int
+
+```
+
+
+
+
+```{r setup_3, include=FALSE}
+#--------------------------------------------------------------------------------
+
+# DATA FROM 2021 CENSUS
+
+# https://www.ons.gov.uk/peoplepopulationandcommunity/householdcharacteristics/homeinternetandsocialmediausage/bulletins/householdandresidentcharacteristicsenglandandwales/census2021
+
+HouseholdType_London <- read.csv("C:/Families/Housing/HouseholdType_London.csv") %>%  
+ data.frame()
+
+# Join boroughs data with Inner/Outer file
+
+boroughcodes <- read.csv("C:/Migration/Migration_R/DATA/Domestic/InnerLondon.csv") %>%   
+  data.frame
+
+HouseholdType_London_Zone <- HouseholdType_London %>%
+  left_join(boroughcodes, by=c("Area_code"="BoroughCode"))%>% 
+  mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
+  data.frame() 
+
+```
+
+
+```{r fig_London_HouseholdType_map_1, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Interactive map of main household type in 2021 in London
+
+# Import LA boundaries for England and Wales
+borough_boundaries <-
+  st_read("C:/Migration/Migration_R/DATA/Domestic/copied_from_Qdrive_20220614/geographical/LAD_DEC_2021_GB_BUC.shp", quiet = TRUE)
+
+# Match boundary data with rentals data and create categories for mapping
+
+HouseholdType_Boroughs_geog <- HouseholdType_London_Zone %>% 
+ # filter(grepl('E09', Area_Code)) %>%
+  left_join(borough_boundaries, by=c("Area_code"="LAD21CD")) %>%
+#  filter(Date == "2022_Oct") %>%
+  data.frame()
+
+catcolour4 = c("#3681bf","#89105d","#d3c913","#73a072")
+
+HouseholdType_Boroughs_map <- HouseholdType_Boroughs_geog %>%
+  ggplot()+
+  geom_point(aes(x=BNG_E, y=BNG_N, 
+                 text = paste("Borough: ", Area_name,  
+                              "<br>Main household type: ", top_category,
+                              "<br>Percentage of total: ", percentage )),
+             alpha = 0) +   # alpha = 0 ensures that points are not actually plotted
+  geom_sf(aes(geometry=geometry, fill=top_category),lwd = 0.2, colour = "black")+
+  #ggla_sf()+
+  #theme_gla()+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.position = "right")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(plot.caption = element_text (hjust = 0))+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.x = element_blank(), 
+        axis.ticks.y = element_blank())+
+  scale_fill_manual(values = catcolour4) + 
+  labs(title= "<b>Main household type, London, 2021<b>", 
+       caption = paste0("Source: ONS, Chart: GLA demography")) +
+  labs(fill = "Category")
+
+# ggsave (filename = (paste0(chart_dir, "Rentals_Boroughs_value_map.png")),
+#          plot = Rentals_Boroughs_map,
+#          device = "png",
+#          dpi=600,
+#          width = 9,
+#          height = 5.56,
+#          units = "in")
+
+# Interactive map using ggplotly
+
+HouseholdType_Boroughs_map_int <- ggplotly(HouseholdType_Boroughs_map, tooltip = "text") %>%
+  layout(title= list(x = 0.05,
+                     text = "<b>Main household type, London, 2021<b>", 
+                     font=list(size = 15, family = "Arial")),
+         font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+         legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+                     title=list(text='Category',
+                                font = list(family = "Arial", size = 14)),  
+                     font = list(family = "Arial", size = 14))) %>%  
+  # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+  layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography", 
+                            showarrow = F, xref='paper', yref='paper', 
+                            font=list(size=14, family = "Arial")), 
+         margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4)) 
+
+HouseholdType_Boroughs_map_int
+
+
+```
+
+
+
+
+
+

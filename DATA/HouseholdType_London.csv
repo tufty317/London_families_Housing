@@ -1,0 +1,79 @@
+﻿Area_code,Area_name,"One person household: 
+aged 66 years and over
+(number)","One person household: 
+Other
+(number)","Couple family household: 
+No Children
+(number)","Couple family household: 
+Dependent Children
+(number)","Couple family household: 
+All children non-dependent
+(number)","Lone parent household: 
+Dependent children
+(number)","Lone parent household: 
+All children non-dependent
+(number)","Other household type
+(number)","One person household: 
+aged 66 years and over 
+(percent)","One  person household: 
+Other
+(percent)","Couple family household: 
+No Children
+(percent)","Couple family household: 
+Dependent Children
+(percent)","Couple family household: 
+All children non-dependent
+(percent)","Lone parent household: 
+Dependent children
+(percent)","Lone parent household: 
+All children non-dependent
+(percent)","Other household type
+(percent)","One person household: 
+aged 66 years and over 
+(percent)","One  person household: 
+Other
+(percent)","Couple family household: 
+No Children
+(percent)","Couple family household: 
+Dependent Children
+(percent)","Couple family household: 
+All children non-dependent
+(percent)","Lone parent household: 
+Dependent children
+(percent)","Lone parent household: 
+All children non-dependent
+(percent)","Other household type
+(percent)",top_category,percentage
+E09000001,City of London,494,2012,1121,310,80,90,85,724,10,40.9,22.8,6.3,1.6,1.8,1.7,14.7,4,1,2,5,8,6,7,3,One person household,40.9
+E09000002,Barking and Dagenham,5991,11512,6229,17818,4838,9427,4689,13400,8.1,15.6,8.4,24.1,6.5,12.8,6.3,18.1,6,3,5,1,7,4,8,2,Couple with dependent children,24.1
+E09000003,Barnet,15208,26450,18646,32601,10402,10476,7627,27509,10.2,17.8,12.5,21.9,7,7,5.1,18.5,5,3,4,1,6,6,8,2,Couple with dependent children,21.9
+E09000004,Bexley,11968,12785,12565,20932,8204,7665,5016,16165,12.6,13.4,13.2,22,8.6,8,5.3,17,5,3,4,1,6,7,8,2,Couple with dependent children,22
+E09000005,Brent,9712,22273,12556,20985,8378,9830,7848,27030,8.2,18.8,10.6,17.7,7.1,8.3,6.6,22.8,6,2,4,3,7,5,8,1,Other household type,22.8
+E09000006,Bromley,17443,21225,20783,30428,9579,9298,6149,20923,12.8,15.6,15.3,22.4,7.1,6.8,4.5,15.4,5,2,4,1,6,7,8,3,Couple with dependent children,22.4
+E09000007,Camden,9718,26213,14621,12849,3027,5945,4614,15771,10.5,28.3,15.8,13.9,3.3,6.4,5,17,5,1,3,4,8,6,7,2,One person household,28.3
+E09000008,Croydon,14652,28439,19848,29290,10343,15169,9374,25832,9.6,18.6,13,19.2,6.8,9.9,6.1,16.9,6,2,4,1,7,5,8,3,Couple with dependent children,19.2
+E09000009,Ealing,11837,23825,16810,27688,9278,9558,7690,26973,8.9,17.8,12.6,20.7,6.9,7.2,5.8,20.2,5,3,4,1,7,6,8,2,Couple with dependent children,20.7
+E09000010,Enfield,12251,18908,11938,24205,9764,14274,8150,21439,10.1,15.6,9.9,20,8.1,11.8,6.7,17.7,5,3,6,1,7,4,8,2,Couple with dependent children,20
+E09000011,Greenwich,9581,24467,17894,20565,5843,10898,6197,18607,8.4,21.5,15.7,18,5.1,9.6,5.4,16.3,6,1,4,2,8,5,7,3,One person household,21.5
+E09000012,Hackney,7489,27439,16034,15333,3362,9944,6456,20023,7.1,25.9,15.1,14.5,3.2,9.4,6.1,18.9,6,1,3,4,8,5,7,2,One person household,25.9
+E09000013,Hammersmith and Fulham,7351,21973,13070,11137,2712,5354,4329,15318,9,27,16.1,13.7,3.3,6.6,5.3,18.9,5,1,3,4,8,6,7,2,One person household,27
+E09000014,Haringey,8958,23335,14712,17669,4834,9079,6776,19729,8.5,22.2,14,16.8,4.6,8.6,6.4,18.8,6,1,4,3,8,5,7,2,One person household,22.2
+E09000015,Harrow,9050,10802,9905,20606,9032,4883,4855,20509,10.1,12.1,11,23,10.1,5.4,5.4,22.9,5,3,4,1,5,7,7,2,Couple with dependent children,23
+E09000016,Havering,12838,13291,13384,21628,9197,7821,5317,17801,12.7,13.1,13.2,21.4,9.1,7.7,5.2,17.6,5,4,3,1,6,7,8,2,Couple with dependent children,21.4
+E09000017,Hillingdon,11143,15491,13674,25558,8956,7944,5919,20542,10.2,14.2,12.5,23.4,8.2,7.3,5.4,18.8,5,3,4,1,6,7,8,2,Couple with dependent children,23.4
+E09000018,Hounslow,9176,17033,12529,22754,7313,7598,5749,20809,8.9,16.5,12.2,22.1,7.1,7.4,5.6,20.2,5,3,4,1,7,6,8,2,Couple with dependent children,22.1
+E09000019,Islington,7636,27159,17396,11328,2940,7823,5248,16967,7.9,28.1,18,11.7,3,8.1,5.4,17.6,6,1,2,4,8,5,7,3,One person household,28.1
+E09000020,Kensington and Chelsea,7750,21483,9669,8154,2597,3407,3267,10558,11.6,32.1,14.5,12.2,3.9,5.1,4.9,15.8,5,1,3,4,8,6,7,2,One person household,32.1
+E09000021,Kingston upon Thames,6894,10822,10369,15787,4448,3747,2589,10970,10.5,16.5,15.8,24.1,6.8,5.7,3.9,16.7,5,3,4,1,6,7,8,2,Couple with dependent children,24.1
+E09000022,Lambeth,9531,33623,21825,16088,4429,11320,7908,29962,7.1,25,16.2,11.9,3.3,8.4,5.9,22.2,6,1,3,4,8,5,7,2,One person household,25
+E09000023,Lewisham,9365,27782,19271,20273,5577,12195,7725,20202,7.7,22.7,15.7,16.6,4.6,10,6.3,16.5,6,1,4,2,8,5,7,3,One person household,22.7
+E09000024,Merton,7507,12957,12896,18270,5266,5064,4082,15687,9.2,15.9,15.8,22.4,6.4,6.2,5,19.2,5,3,4,1,6,7,8,2,Couple with dependent children,22.4
+E09000025,Newham,6377,20660,13753,23490,6379,9866,7105,27877,5.5,17.9,11.9,20.3,5.5,8.5,6.2,24.1,7,3,4,2,7,5,6,1,Other household type,24.1
+E09000026,Redbridge,9669,14217,10620,26258,9104,7155,5332,21359,9.3,13.7,10.2,25.3,8.8,6.9,5.1,20.6,5,3,4,1,6,7,8,2,Couple with dependent children,25.3
+E09000027,Richmond upon Thames,10039,13832,13599,20108,4562,4224,2854,11486,12.4,17.1,16.9,24.9,5.7,5.2,3.5,14.2,5,2,3,1,6,7,8,4,Couple with dependent children,24.9
+E09000028,Southwark,9507,33841,21330,16595,4254,12110,7737,25444,7.3,25.9,16.3,12.7,3.3,9.3,5.9,19.4,6,1,3,4,8,5,7,2,One person household,25.9
+E09000029,Sutton,9497,12703,11733,20164,6194,5900,3896,12262,11.5,15.4,14.2,24.5,7.5,7.2,4.7,14.9,5,2,4,1,6,7,8,3,Couple with dependent children,24.5
+E09000030,Tower Hamlets,5786,32744,21029,19753,3295,7961,4892,25078,4.8,27.2,17.4,16.4,2.7,6.6,4.1,20.8,6,1,3,4,8,5,7,2,One person household,27.2
+E09000031,Waltham Forest,8254,18442,15265,20741,6036,8536,6169,19456,8,17.9,14.8,20.2,5.9,8.3,6,18.9,6,3,4,1,8,5,7,2,Couple with dependent children,20.2
+E09000032,Wandsworth,10880,30252,26323,22546,4823,8277,5764,28528,7.9,22,19.2,16.4,3.5,6,4.2,20.8,5,1,3,4,8,6,7,2,One person household,22
+E09000033,Westminster,9498,30945,14482,10677,3077,5015,4683,16440,10,32.6,15.3,11.3,3.2,5.3,4.9,17.3,5,1,3,4,8,6,7,2,One person household,32.6
