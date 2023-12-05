@@ -1,0 +1,446 @@
+---
+title: "Housing purchase costs analysis, Dec 5 2023"
+output: 
+  html_document:
+    css: Wil_style.css
+    theme: default
+    toc: TRUE
+    toc_float: TRUE
+    number_sections: TRUE
+always_allow_html: yes
+---
+
+```{r setup_1, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(gglaplot)
+library(ggplot2)
+library(data.table)
+library(lubridate)
+library(tidyr)
+library(png)
+library(stringr)
+library(tidyverse)
+library(plotly)
+library(sf)
+library(scales)
+library(htmlwidgets)
+library(ggplot2)
+library(gglaplot)
+library(ggrepel)
+
+
+#devtools::load_all("C:/demogtools/")
+
+data_dir <- 'DATA/'
+chart_dir <- 'C:/Families/Charts/'
+
+
+```
+
+
+
+```{r setup_2, include=FALSE}
+#--------------------------------------------------------------------------------
+
+# DATA FROM ONS WEBSITE
+
+# Ratio of lower quartile house price to lower quartile gross annual (where available) workplace-based earnings by local authority district, England and Wales, 1997 to 2022
+
+## Regions
+
+Purchase_Regions_Data_wide <- read.csv(paste0(data_dir,"ONS_Purchase_Regions_wide.csv")) %>%  
+ data.frame()
+
+Purchase_Regions_Data_long <- Purchase_Regions_Data_wide %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "year",
+    values_to = "ratio") %>%
+    mutate(Year = as.numeric(gsub("X", "", year))) %>%
+    mutate(Ratio = as.numeric(ratio)) %>%
+   select (-c(year, ratio)) %>%
+   data.frame()
+
+## Local authorities
+
+Purchase_LAsEng_Data_wide <- read.csv(paste0(data_dir,"ONS_Purchase_LAs_allEng_wide.csv")) %>%  
+ data.frame()
+
+Purchase_LAsEng_Data_long <- Purchase_LAsEng_Data_wide %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "year",
+    values_to = "ratio") %>%
+    mutate(Year = as.numeric(gsub("X", "", year))) %>%
+    mutate(Ratio = as.numeric(ratio)) %>%
+   select (-c(year, ratio)) %>%
+   data.frame()
+
+Purchase_LAsEng_2022 <- Purchase_LAsEng_Data_long %>% 
+ filter(Year == 2022) %>%
+    data.frame()
+
+# Join London boroughs data with Inner/Outer file
+
+boroughcodes <- read.csv(paste0(data_dir,"InnerLondon.csv")) %>%   
+  data.frame
+
+Purchase_Boroughs_Data_Zone <- Purchase_LAsEng_Data_long %>%
+  left_join(boroughcodes, by=c("La_code"="BoroughCode"))%>% 
+  mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
+  data.frame()
+
+Purchase_Boroughs_2022 <- Purchase_LAsEng_Data_long %>% 
+ filter(Year == 2022) %>%
+  left_join(boroughcodes, by=c("La_code"="BoroughCode"))%>% 
+  mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
+  data.frame()
+
+# Import LA boundaries for England and Wales
+LAs_boundaries <-
+  st_read("C:/Migration/Migration_R/DATA/Domestic/copied_from_Qdrive_20220614/geographical/LAD_DEC_2021_GB_BUC.shp", quiet = TRUE)
+
+borough_boundaries <-
+  st_read("C:/Migration/Migration_R/DATA/Domestic/copied_from_Qdrive_20220614/geographical/LAD_DEC_2021_GB_BUC.shp", quiet = TRUE)
+
+
+```
+
+# Current geographical variation
+
+```{r fig_London_Ratio_map_0, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Interactive map of rentals in 2022 in London and SouthEast 
+
+londonmap7_diverge2 = c('#943fa6', '#b47bbe', '#d2b4d6', '#eeeeee', '#c3e1db', '#96d3c8', '#63c5b5')
+
+
+catgreen4 = rev(c('#527450', '#759a72', '#a1c09e', '#d8e4d6'))
+
+#catgreen4 = c('#eeeeee', '#acc1aa', '#739272', '#4a6349')
+
+# Import Region boundaries for UK
+
+south_region_boundaries <-
+  st_read("C:/Geographical/England_Region_Boundaries/RGN_DEC_2022_EN_BUC.shp", quiet = TRUE) %>%
+    mutate(London = ifelse((RGN22CD=="E12000007"), "yes", "no")) %>%
+    filter(RGN22CD=="E12000006" | RGN22CD=="E12000007" | RGN22CD=="E12000008" )
+
+# Match boundary data with ratio data and create categories for mapping
+
+Purchase_LAsEng_geog <- Purchase_LAsEng_Data_long %>% 
+  left_join(LAs_boundaries, by=c("La_code"="LAD21CD")) %>%
+#  filter(grepl('E09000', La_code)) %>%
+#  filter(Year == 2022) %>%
+  mutate(Ratio_Cat = cut(Ratio, breaks = c(0, 12.5, 14, 16.5, 40),
+                             right=FALSE,
+                             labels = c("   0 - 12.4",
+                                        " 12.5 - 13.9",
+                                        " 14.0 - 16.4",
+                                        " 16.5 - 40"))) %>%
+ filter(!is.na(Ratio)) %>%
+  data.frame()
+
+#quantile(Purchase_LAsEng_geog$Ratio)
+
+Ratio_South_LAs_map <- Purchase_LAsEng_geog %>%
+   filter(Year == 2022) %>%
+  ggplot()+
+  geom_point(aes(x=BNG_E, y=BNG_N,
+                 text = paste("LA name: ",  La_name,
+                               "<br>Ratio: ",
+                              formatC(Ratio, format="f", big.mark=",", digits=2))),
+             alpha = 0) +   # alpha = 0 ensures that points are not actually plotted
+   geom_sf(aes(geometry=geometry, fill=Ratio_Cat),lwd = 0.1, colour = "black" ) +
+  geom_sf(data = south_region_boundaries, aes(x=LONG, y=LAT, geometry=geometry), alpha = 0.01, lwd = 1.0, colour = "black")+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.position = "right")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(plot.caption = element_text (hjust = 0))+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.x = element_blank(), 
+        axis.ticks.y = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, size=2))+
+  scale_fill_manual(values = catgreen4) + 
+  labs(title= "Ratio of lower quartile house price to lower quartile gross annual earnings", 
+       caption = paste0("Source: ONS, Chart: GLA demography")) +
+  labs(fill = "Ratio") +
+  guides(alpha="none") +
+  coord_sf(xlim = c(480000,580000), ylim = c(130000, 220000)) 
+
+Ratio_South_LAs_map
+
+
+# Interactive map using ggplotly
+Ratio_South_LAs_map_int <- ggplotly(Ratio_South_LAs_map, tooltip = "text") %>%
+  layout(title= list(x = 0.05,
+                     text = "<b>Ratio of lower quartile house price to lower quartile gross annual earnings<b>",
+                     font=list(size = 20, family = "Arial")),
+         font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+         legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+                     title=list(text='Ratio',
+                                font = list(family = "Arial", size = 14)),
+                     font = list(family = "Arial", size = 14))) %>%
+  # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+  layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography",
+                            showarrow = F, xref='paper', yref='paper',
+                            font=list(size=14, family = "Arial")),
+         margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4))
+Ratio_South_LAs_map_int
+
+
+
+```
+
+
+# Time trends
+
+
+```{r fig_Region_Rents_LQ, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of lower quartile monthly rent for 2 bedroom flat in England's regions
+
+colour_palette = c( "#9e0059","#6da7de", "#d82222", "#5ea15d", "#dee000", "#943fa6", "#63c5b5", "#ff38ba", "#eb861e", "#ee266d")
+
+Ratio_regions_line <- Purchase_Regions_Data_long %>%
+  filter(grepl('E12000', Code)) %>%
+  mutate(label = if_else(Year == max(Year), as.character(Name),NA_character_)) %>%
+  ggplot(aes(x = Year, y = Ratio, group = Name, color = Name, text = paste("Year: ", Year,
+                          "<br>Region: ", Name,
+                          "<br>Ratio: ", round(Ratio, digits = 2)))) +
+  geom_line() +
+  theme_gla() +
+  geom_label_repel(aes(label = label), nudge_x = 2) +
+ # scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
+   scale_color_manual(name='Region:', values = colour_palette) +
+    scale_color_discrete(guide = FALSE) +
+    theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+    theme(axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial", angle = 45), # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  labs(title= "Ratio of lower quartile house price to lower quartile gross annual earnings", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+Ratio_regions_line
+
+# Ratio_regions_line_int <- ggplotly(Ratio_regions_line, tooltip = "text") %>%
+#   style(hoverlabel = list(bgcolor = "white")) %>%
+#   layout(legend=list(title=list(text='Region',
+#                                 font = list(family = "Arial", size = 16)),
+#                      font = list(family = "Arial", size = 14))) %>%
+#   layout(title= list(x = 0.05,
+#                      text = "<b>Ratio of lower quartile house price to lower quartile gross annual earnings<b>",
+#                      font=list(size = 15, family = "Arial")))
+# Ratio_regions_line_int
+
+```
+
+```{r fig_Region_Ratio_LQ_Ind1, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of Ratio over time for Regions, indexed 
+
+Ratio_regions_indexed1 <- Purchase_Regions_Data_long  %>%
+  mutate(Year_factor = as.factor(Year)) %>%
+  mutate(Region_factor = as.factor(Name)) %>%  
+  group_by(Name) %>% 
+  mutate(Indexed_Ratio = (Ratio/first(Ratio))*100) %>% 
+  data.frame()
+
+
+Ratio_regions_ind_line1 <- Ratio_regions_indexed1 %>%
+  filter(grepl('E12000', Code)) %>%
+  mutate(label = if_else(Year == max(Year), as.character(Name),NA_character_)) %>%
+  ggplot(aes(x = Year, y = Indexed_Ratio, group = Name, color = Name, text = paste("Year: ", Year,
+                          "<br>Region: ", Name,
+                          "<br>Ratio: ", round(Indexed_Ratio, digits = 2)))) +
+  geom_line() +
+  theme_gla() +
+  geom_label_repel(aes(label = label), nudge_x = 2) +
+ # scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
+   scale_color_manual(name='Region:', values = colour_palette) +
+    scale_color_discrete(guide = FALSE) +
+    theme(plot.title = element_text(size = 16)) +
+    theme(axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial", angle = 45), # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  labs(title= "Ratio of lower quartile house price to lower quartile gross annual earnings",
+  subtitle = "Indexed to 1997", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+Ratio_regions_ind_line1
+
+
+```
+
+
+```{r fig_Region_Ratio_LQ_Ind2, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of Ratio over time for Regions, indexed 
+
+Ratio_regions_indexed2 <- Purchase_Regions_Data_long  %>%
+  mutate(Year_factor = as.factor(Year)) %>%
+  mutate(Region_factor = as.factor(Name)) %>%
+  filter(Year > 2007) %>%
+  group_by(Name) %>% 
+  mutate(Indexed_Ratio = (Ratio/first(Ratio))*100) %>% 
+  data.frame()
+
+Ratio_regions_ind_line2 <- Ratio_regions_indexed2 %>%
+  filter(grepl('E12000', Code)) %>%
+  mutate(label = if_else(Year == max(Year), as.character(Name),NA_character_)) %>%
+  ggplot(aes(x = Year, y = Indexed_Ratio, group = Name, color = Name, text = paste("Year: ", Year,
+                          "<br>Region: ", Name,
+                          "<br>Ratio: ", round(Indexed_Ratio, digits = 2)))) +
+  geom_line() +
+  theme_gla() +
+  geom_label_repel(aes(label = label), nudge_x = 2) +
+ # scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
+   scale_color_manual(name='Region:', values = colour_palette) +
+    scale_color_discrete(guide = FALSE) +
+    theme(plot.title = element_text(size = 16)) +
+    theme(axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial", angle = 45), # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  labs(title= "Ratio of lower quartile house price to lower quartile gross annual earnings",
+        subtitle = "Indexed to 2008", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+Ratio_regions_ind_line2
+
+
+```
+
+```{r fig_Region_Ratio_LQ_Ind3, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of Ratio over time for Regions, indexed 
+
+Ratio_regions_indexed3 <- Purchase_Regions_Data_long  %>%
+  mutate(Year_factor = as.factor(Year)) %>%
+  mutate(Region_factor = as.factor(Name)) %>%
+  filter(Year > 2016) %>%
+  group_by(Name) %>% 
+  mutate(Indexed_Ratio = (Ratio/first(Ratio))*100) %>% 
+  data.frame()
+
+Ratio_regions_ind_line3 <- Ratio_regions_indexed3 %>%
+  filter(grepl('E12000', Code)) %>%
+  mutate(label = if_else(Year == max(Year), as.character(Name),NA_character_)) %>%
+  ggplot(aes(x = Year, y = Indexed_Ratio, group = Name, color = Name, text = paste("Year: ", Year,
+                          "<br>Region: ", Name,
+                          "<br>Ratio: ", round(Indexed_Ratio, digits = 2)))) +
+  geom_line() +
+  theme_gla() +
+  geom_label_repel(aes(label = label), nudge_x = 2) +
+ # scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
+   scale_color_manual(name='Region:', values = colour_palette) +
+    scale_color_discrete(guide = FALSE) +
+    theme(plot.title = element_text(size = 16)) +
+    theme(axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial", angle = 45), # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  labs(title= "Ratio of lower quartile house price to lower quartile gross annual earnings",
+        subtitle = "Indexed to 2017", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+Ratio_regions_ind_line3
+
+
+```
+
+
+```{r fig_London_Ratio_3, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of Rents over time for individual London boroughs
+
+catcolour2 = c('#ee266d', '#6da7de')
+
+Purchase_Boroughs_line_abs <- Purchase_Boroughs_Data_Zone %>%
+  filter(grepl('E09000', La_code)) %>%
+  ggplot() +
+  geom_line(aes(x = Year, y = Ratio, group = La_name, color = Inner_factor,
+             text = paste("Year  :", Year,
+                          "<br>Borough : ", La_name,                        
+                          "<br>Ratio: ", round(Ratio, digits = 2)) 
+  )) +
+  theme_gla() +
+  theme(legend.title=element_text(size=14, family = "Arial"),
+        legend.text=element_text(size=11, family = "Arial"),
+        axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial",angle=45),  # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  scale_color_manual(name='London Zone:', values = catcolour2) +
+    theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.title=element_text(size=16),
+        legend.text=element_text(size=12)) +
+  labs(title= "Ratio of lower quartile house price to lower quartile gross annual earnings, indexed to 1997", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+Purchase_Boroughs_line_abs_int <- ggplotly(Purchase_Boroughs_line_abs, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(title= list(x = 0.05, 
+                     text ="<b>Ratio of lower quartile house price to lower quartile gross annual earnings<b>", 
+   font=list(size = 15, family = "Arial", color = "black", fontface = "bold")),
+          legend=list(title=list(text='London Zone', font = list(size = 15, family = "Arial", color = "black", fontface = "bold"))), 
+          xaxis = list(title = list(text ='', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))),
+          yaxis = list(title = list(text ='Ratio', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))))
+Purchase_Boroughs_line_abs_int
+
+```
+
+```{r fig_London_Ratio_4, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of Rents over time for individual London boroughs, indexed to 2011
+
+catcolour2 = c('#ee266d', '#6da7de')
+
+Ratio_boroughs_indexed <- Purchase_Boroughs_Data_Zone %>%
+   filter(grepl('E09000', La_code)) %>%
+  group_by(La_code) %>% 
+  mutate(Indexed_Ratio = (Ratio/first(Ratio))*100) %>% 
+  data.frame()
+  
+Ratio_boroughs_line_indexed <- Ratio_boroughs_indexed %>%
+  ggplot() +
+   geom_line(aes(x = Year, y = Indexed_Ratio, group = La_name, color = Inner_factor,
+             text = paste("Year  :", Year,
+                          "<br>Borough : ", La_name,
+                          "<br>Ratio as % of value in 1997 ", round(Indexed_Ratio, digits = 1))
+  )) +
+  theme_gla() +
+  theme(legend.title=element_text(size=14, family = "Arial"),
+        legend.text=element_text(size=11, family = "Arial"),
+    axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial", angle=45),  # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+   scale_color_manual(name='London Zone:', values = catcolour2) +
+    theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.title=element_text(size=16),
+        legend.text=element_text(size=12)) +
+  geom_hline(yintercept=100)+
+  labs(title= "Ratio of lower quartile house price to lower quartile gross annual earningsindexed to 1997", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+
+Ratio_boroughs_line_indexed_int <- ggplotly(Ratio_boroughs_line_indexed, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(title= list(x = 0.05,
+                     text ="<b>Ratio of lower quartile house price to lower quartile gross annual earnings indexed to 1997<b>", 
+   font=list(size = 15, family = "Arial", color = "black", fontface = "bold")),
+          legend=list(title=list(text='London Zone', font = list(size = 15, family = "Arial", color = "black", fontface = "bold"))), 
+          xaxis = list(title = list(text ='', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))),
+          yaxis = list(title = list(text ='Indexed Ratio', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))))
+ Ratio_boroughs_line_indexed_int
+```
+

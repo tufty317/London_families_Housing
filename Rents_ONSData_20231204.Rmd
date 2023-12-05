@@ -1,5 +1,5 @@
 ---
-title: "Housing analysis, October 24th 2023"
+title: "Rentals cost analysis, Oct 24 and Dec 4 2023"
 output: 
   html_document:
     css: Wil_style.css
@@ -52,7 +52,11 @@ Rentals_Regions_Data <- read.csv(paste0(data_dir,"ONS_Rents_Regions_all.csv")) %
 Rentals_Boroughs_Data <- read.csv(paste0(data_dir,"ONS_Rents_LAs_all.csv")) %>%  
  data.frame()
 
-# Join boroughs data with Inner/Outer file
+Rentals_LAsEng_Data <- read.csv(paste0(data_dir,"ONS_Rents_LAs_allEng.csv")) %>%  
+ data.frame()
+
+
+# Join London boroughs data with Inner/Outer file
 
 boroughcodes <- read.csv(paste0(data_dir,"InnerLondon.csv")) %>%   
   data.frame
@@ -60,21 +64,122 @@ boroughcodes <- read.csv(paste0(data_dir,"InnerLondon.csv")) %>%
 Rentals_Boroughs_Data_Zone <- Rentals_Boroughs_Data %>%
   left_join(boroughcodes, by=c("Area_Code"="BoroughCode"))%>% 
   mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
-  data.frame() 
+  data.frame()
+
+
+# Import LA boundaries for England and Wales
+LAs_boundaries <-
+  st_read("C:/Migration/Migration_R/DATA/Domestic/copied_from_Qdrive_20220614/geographical/LAD_DEC_2021_GB_BUC.shp", quiet = TRUE)
+
+
+borough_boundaries <-
+  st_read("C:/Migration/Migration_R/DATA/Domestic/copied_from_Qdrive_20220614/geographical/LAD_DEC_2021_GB_BUC.shp", quiet = TRUE)
+
+# scale_fill_gradient2(low = "#63c5b5", mid = "#eeeeee",  high = "#943fa6", midpoint = 0) +
 
 ```
 
 # Current geographical variation
 
+```{r fig_London_Rents_map_0, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## New on December 5th! Using code from Population Patterns file 
+
+## Interactive map of rentals in 2022 in London and SouthEast 
+
+londonmap7_diverge2 = c('#943fa6', '#b47bbe', '#d2b4d6', '#eeeeee', '#c3e1db', '#96d3c8', '#63c5b5')
+
+catgreen4 = c('#eeeeee', '#acc1aa', '#739272', '#4a6349')
+
+# Import Region boundaries for UK
+
+south_region_boundaries <-
+  st_read("C:/Geographical/England_Region_Boundaries/RGN_DEC_2022_EN_BUC.shp", quiet = TRUE) %>%
+    mutate(London = ifelse((RGN22CD=="E12000007"), "yes", "no")) %>%
+    filter(RGN22CD=="E12000006" | RGN22CD=="E12000007" | RGN22CD=="E12000008" )
+
+# Match boundary data with rentals data and create categories for mapping
+
+Rentals_LAs_geog <- Rentals_LAsEng_Data %>% 
+  left_join(LAs_boundaries, by=c("Area_Code"="LAD21CD")) %>%
+  mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+  mutate(Rentals_Cat = cut(Lower_quartile_num, breaks = c(1000, 1250, 1350, 1650, 3000),
+                             right=FALSE,
+                             labels = c(" 1000 - 1249",
+                                        " 1250 - 1349",
+                                        " 1350 - 1649",
+                                        " 1650 - 3000"))) %>%
+#  filter(!is.na(Rentals_Cat)) %>%
+#    filter(!is.na(BNG_E)) %>%
+  data.frame()
+
+#quantile(Rentals_LAs_geog$Lower_quartile_num)
+
+Rentals_South_LAs_map <- Rentals_LAs_geog %>%
+  ggplot()+
+  geom_point(aes(x=BNG_E, y=BNG_N,
+                 text = paste("LA name: ",  Area_Name,
+                               "<br>Lower_quartile monthly rent: ",
+                              formatC(Lower_quartile_num, format="f", big.mark=",", digits=2))),
+             alpha = 0) +   # alpha = 0 ensures that points are not actually plotted
+   geom_sf(aes(geometry=geometry, fill=Rentals_Cat),lwd = 0.1, colour = "black" ) +
+  geom_sf(data = south_region_boundaries, aes(x=LONG, y=LAT, geometry=geometry), alpha = 0.01, lwd = 0.7, colour = "black")+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.position = "right")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(plot.caption = element_text (hjust = 0))+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.x = element_blank(), 
+        axis.ticks.y = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, size=2))+
+  scale_fill_manual(values = catgreen4) + 
+  labs(title= "Lower quartile monthly rent for 2 bedroom flat, London, 2022", 
+       caption = paste0("Source: ONS, Chart: GLA demography")) +
+#  labs(fill = "Monthly rent (£)") +
+  guides(alpha="none") +
+  coord_sf(xlim = c(480000,580000), ylim = c(130000, 220000)) 
+#  annotate(geom = "rect", ymax = 220000, ymin = 130000, xmax = 580000, xmin = 480000, colour = "black", fill = NA) 
+
+Rentals_South_LAs_map
+
+# # Interactive map using ggplotly
+# Rentals_South_LAs_map_int <- ggplotly(Rentals_South_LAs_map, tooltip = "text") %>%
+#   layout(title= list(x = 0.05,
+#                      text = "<b>Lower quartile monthly rent for 2 bedroom flat, London, October 2022<b>",
+#                      font=list(size = 15, family = "Arial")),
+#          font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+#          legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+#                      title=list(text='Monthly rent',
+#                                 font = list(family = "Arial", size = 14)),
+#                      font = list(family = "Arial", size = 14))) %>%
+#   # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+#   layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography",
+#                             showarrow = F, xref='paper', yref='paper',
+#                             font=list(size=14, family = "Arial")),
+#          margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4))
+# Rentals_South_LAs_map_int
+
+# get error message: 
+# Error in (function (..., deparse.level = 1)  : 
+#  number of columns of matrices must match (see arg 8)
+
+
+```
+
+
+
+
 
 ```{r fig_London_Rents_map_1, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
 
 
-## Interactive map of rentals in 2022 in London
-
-# Import LA boundaries for England and Wales
-borough_boundaries <-
-  st_read(paste0(data_dir,"LAD_DEC_2021_GB_BUC.shp", quiet = TRUE))
+## Previous map of rentals in 2022 in London
 
 # Match boundary data with rentals data and create categories for mapping
 
@@ -158,10 +263,6 @@ Rentals_Boroughs_map_int
 
 Ukrainians_Boroughs_Data <- read.csv("C:/Families/Housing/Ukrainians_data.csv") %>%  
  data.frame()
-
-# Import LA boundaries for England and Wales
-borough_boundaries <-
-  st_read(paste0(data_dir,"LAD_DEC_2021_GB_BUC.shp", quiet = TRUE))
 
 # Match boundary data with arrivals data and create categories for mapping
 
@@ -708,7 +809,6 @@ Rentals_Boroughs_ind2011_zone_int
 ```
 
 
-
 ```{r fig_London_Rents_map_2, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
 
 ## Interactive map of change in rental costs between 2011 and 2022 in London
@@ -803,7 +903,6 @@ Rentals_Boroughs_change2011_map_int
 
 ```
 
-
 ```{r fig_London_Rents_7, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
 
 
@@ -883,7 +982,6 @@ Rentals_Boroughs_ind2019_zone_int <- ggplotly(Rentals_Boroughs_ind2019_zone, too
 Rentals_Boroughs_ind2019_zone_int
 
 ```
-
 
 
 ```{r fig_London_Rents_map_3, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
