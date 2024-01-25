@@ -63,6 +63,18 @@ Purchase_Regions_Data_long <- Purchase_Regions_Data_wide %>%
    select (-c(year, ratio)) %>%
    data.frame()
 
+Purchase_Regions_Data_long_ed <- Purchase_Regions_Data_long %>%
+    filter(Name != "England and Wales") %>%
+    filter(Code != "E92000001") %>%
+    filter(Name != "Wales") %>%
+    mutate(highlight_flag = ifelse(Name == 'London'|Name == 'South East'|Name == 'East', T, F)) %>%    
+    mutate(Region_factor = as.factor(Name)) %>%
+    group_by(Region_factor) %>% 
+    mutate(label = if_else(Year == max(Year), 
+                         as.character(Region_factor), NA_character_)) %>%
+ data.frame()
+
+
 ## Local authorities
 
 Purchase_LAsEng_Data_wide <- read.csv(paste0(data_dir,"ONS_Purchase_LAs_allEng_wide.csv")) %>%  
@@ -136,10 +148,10 @@ Purchase_LAsEng_geog <- Purchase_LAsEng_Data_long %>%
 #  filter(Year == 2022) %>%
   mutate(Ratio_Cat = cut(Ratio, breaks = c(0, 12.5, 14, 16.5, 40),
                              right=FALSE,
-                             labels = c("   0 - 12.4",
-                                        " 12.5 - 13.9",
-                                        " 14.0 - 16.4",
-                                        " 16.5 - 40"))) %>%
+                             labels = c(" 0.0 -",
+                                        "12.5 -",
+                                        "14.0 -",
+                                        "16.5 -"))) %>%
  filter(!is.na(Ratio)) %>%
   data.frame()
 
@@ -162,6 +174,10 @@ Ratio_South_LAs_map <- Purchase_LAsEng_geog %>%
   theme(panel.background = element_blank())+
   theme(plot.caption = element_text (hjust = 0))+
   theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.text = element_text(size=16)) +
+  theme(legend.title = element_text(size=16)) +
+  theme(legend.key.height= unit(1, 'cm'),
+        legend.key.width= unit(0.7, 'cm')) +
   theme(axis.title.x = element_blank(),
         axis.title.y = element_blank(),
         axis.text.x = element_blank(), 
@@ -179,22 +195,32 @@ Ratio_South_LAs_map <- Purchase_LAsEng_geog %>%
 Ratio_South_LAs_map
 
 
+
+ggsave (filename = (paste0(chart_dir, "Purchase_ratio_South_LAs_map.png")),
+         plot = Ratio_South_LAs_map,
+         device = "png",
+         dpi=600,
+         width = 9,
+         height = 5.56,
+         units = "in")
+
+
 # Interactive map using ggplotly
-Ratio_South_LAs_map_int <- ggplotly(Ratio_South_LAs_map, tooltip = "text") %>%
-  layout(title= list(x = 0.05,
-                     text = "<b>Ratio of lower quartile house price to lower quartile gross annual earnings<b>",
-                     font=list(size = 20, family = "Arial")),
-         font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
-         legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
-                     title=list(text='Ratio',
-                                font = list(family = "Arial", size = 14)),
-                     font = list(family = "Arial", size = 14))) %>%
-  # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
-  layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography",
-                            showarrow = F, xref='paper', yref='paper',
-                            font=list(size=14, family = "Arial")),
-         margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4))
-Ratio_South_LAs_map_int
+# Ratio_South_LAs_map_int <- ggplotly(Ratio_South_LAs_map, tooltip = "text") %>%
+#   layout(title= list(x = 0.05,
+#                      text = "<b>Ratio of lower quartile house price to lower quartile gross annual earnings<b>",
+#                      font=list(size = 20, family = "Arial")),
+#          font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+#          legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+#                      title=list(text='Ratio',
+#                                 font = list(family = "Arial", size = 14)),
+#                      font = list(family = "Arial", size = 14))) %>%
+#   # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+#   layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography",
+#                             showarrow = F, xref='paper', yref='paper',
+#                             font=list(size=14, family = "Arial")),
+#          margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4))
+# Ratio_South_LAs_map_int
 
 
 
@@ -210,25 +236,37 @@ Ratio_South_LAs_map_int
 
 colour_palette = c( "#9e0059","#6da7de", "#d82222", "#5ea15d", "#dee000", "#943fa6", "#63c5b5", "#ff38ba", "#eb861e", "#ee266d")
 
-Ratio_regions_line <- Purchase_Regions_Data_long %>%
+Ratio_regions_line <- Purchase_Regions_Data_long_ed %>%
   filter(grepl('E12000', Code)) %>%
   mutate(label = if_else(Year == max(Year), as.character(Name),NA_character_)) %>%
-  ggplot(aes(x = Year, y = Ratio, group = Name, color = Name, text = paste("Year: ", Year,
+  ggplot(aes(x = Year, y = Ratio, group = Name, color = Name, size=highlight_flag, text = paste("Year: ", Year,
                           "<br>Region: ", Name,
                           "<br>Ratio: ", round(Ratio, digits = 2)))) +
   geom_line() +
   theme_gla() +
-  geom_label_repel(aes(label = label), nudge_x = 2) +
- # scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
-   scale_color_manual(name='Region:', values = colour_palette) +
+  geom_label_repel(aes(x = Year, y = Ratio, label = label, color = Region_factor, alpha = highlight_flag), nudge_x = 0.5)+
+      scale_y_continuous(limits=c(3, NA), breaks = c(3, 6, 9, 12, 15)) +
+      scale_x_continuous(limits=c(2011, 2023), breaks = c(2011, 2014, 2017, 2020, 2022)) +
+    scale_color_manual(name='', values = colour_palette) +
     scale_color_discrete(guide = FALSE) +
+    scale_size_manual( values = c(0.2, 2), guide = FALSE) +
+   scale_alpha_manual( values = c(0, 1), guide = FALSE) +
     theme(plot.title = element_text(size = 16, hjust = 0.5)) +
     theme(axis.text.x=element_text(color = "black", 
-                                 size=11, family = "Arial", angle = 45), # vjust=.8, hjust=0.8
+                                 size=11, family = "Arial"), # vjust=.8, hjust=0.8, angle = 45
         axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
   labs(title= "Ratio of lower quartile house price to lower quartile gross annual earnings", 
        caption = paste0("Source: ONS, Chart: GLA demography"))
 Ratio_regions_line
+
+ggsave (filename = (paste0(chart_dir, "Purchase_ratio_regions_lines.png")),
+         plot = Ratio_regions_line,
+         device = "png",
+         dpi=600,
+         width = 9,
+         height = 5.56,
+         units = "in")
+
 
 # Ratio_regions_line_int <- ggplotly(Ratio_regions_line, tooltip = "text") %>%
 #   style(hoverlabel = list(bgcolor = "white")) %>%
@@ -268,7 +306,7 @@ Ratio_regions_ind_line1 <- Ratio_regions_indexed1 %>%
     scale_color_discrete(guide = FALSE) +
     theme(plot.title = element_text(size = 16)) +
     theme(axis.text.x=element_text(color = "black", 
-                                 size=11, family = "Arial", angle = 45), # vjust=.8, hjust=0.8
+                                 size=11, family = "Arial"), # vjust=.8, hjust=0.8
         axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
   labs(title= "Ratio of lower quartile house price to lower quartile gross annual earnings",
   subtitle = "Indexed to 1997", 

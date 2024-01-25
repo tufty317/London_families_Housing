@@ -40,13 +40,19 @@ chart_dir <- 'C:/Families/Charts/'
 ```
 
 
-
 ```{r setup_2, include=FALSE}
 #--------------------------------------------------------------------------------
 
 # DATA FROM ONS WEBSITE
 
-Rentals_Regions_Data <- read.csv(paste0(data_dir,"ONS_Rents_Regions_all.csv")) %>%  
+Rentals_Regions_Data <- read.csv(paste0(data_dir,"ONS_Rents_Regions_all.csv")) %>% 
+    mutate(Final_date = as.Date(New_date, format = "%d/%m/%Y")) %>%
+   mutate(highlight_flag = ifelse(Region == 'LONDON'|Region == 'SOUTH EAST'|Region == 'EAST', T, F)) %>% 
+    filter(Region != "ENGLAND") %>%
+     mutate(Region_factor = as.factor(Region)) %>%
+      group_by(Region_factor) %>% 
+ mutate(label = if_else(Final_date == max(Final_date), 
+                         as.character(Region_factor), NA_character_)) %>%
  data.frame()
 
 Rentals_Boroughs_Data <- read.csv(paste0(data_dir,"ONS_Rents_LAs_all.csv")) %>%  
@@ -71,15 +77,72 @@ Rentals_Boroughs_Data_Zone <- Rentals_Boroughs_Data %>%
 LAs_boundaries <-
   st_read("C:/Migration/Migration_R/DATA/Domestic/copied_from_Qdrive_20220614/geographical/LAD_DEC_2021_GB_BUC.shp", quiet = TRUE)
 
-
 borough_boundaries <-
   st_read("C:/Migration/Migration_R/DATA/Domestic/copied_from_Qdrive_20220614/geographical/LAD_DEC_2021_GB_BUC.shp", quiet = TRUE)
 
-# scale_fill_gradient2(low = "#63c5b5", mid = "#eeeeee",  high = "#943fa6", midpoint = 0) +
+# Import Region boundaries for UK
+
+south_region_boundaries <-
+  st_read("C:/Geographical/England_Region_Boundaries/RGN_DEC_2022_EN_BUC.shp", quiet = TRUE) %>%
+    mutate(London = ifelse((RGN22CD=="E12000007"), "yes", "no")) %>%
+    filter(RGN22CD=="E12000006" | RGN22CD=="E12000007" | RGN22CD=="E12000008" )
+
 
 ```
 
 # Current geographical variation
+
+
+```{r fig_London_boundaries_map_, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+# Import Region boundaries for UK
+
+Trial_map <- LAs_boundaries %>%
+  ggplot()+
+  geom_point(aes(x=BNG_E, y=BNG_N,
+                 text = paste("LA name: ",  LAD21NM,
+                              "<br>LA code: ",  LAD21CD
+                               )),
+             alpha = 0) +   # alpha = 0 ensures that points are not actually plotted
+   geom_sf(aes(geometry=geometry),lwd = 0.1, colour = "black" ) +
+    geom_sf(data = south_region_boundaries, aes(x=LONG, y=LAT, geometry=geometry), alpha = 0.01, lwd = 0.7, colour = "black")+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.position = "right")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(plot.caption = element_text (hjust = 0))+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.x = element_blank(), 
+        axis.ticks.y = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, size=2))+
+  coord_sf(xlim = c(480000,580000), ylim = c(130000, 220000)) 
+
+
+
+# Interactive map using ggplotly
+
+Trial_map_int <- ggplotly(Trial_map, tooltip = "text") %>%
+  layout(title= list(x = 0.05,
+                     text = "<b>Lower quartile monthly rent for 2 bedroom flat, London, October 2022<b>",
+                     font=list(size = 15, family = "Arial")),
+         font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+         legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+                     title=list(text='Monthly rent',
+                                font = list(family = "Arial", size = 14)),
+                     font = list(family = "Arial", size = 14))) %>%
+  # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+  layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography",
+                            showarrow = F, xref='paper', yref='paper',
+                            font=list(size=14, family = "Arial")),
+         margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4))
+
+#Trial_map_int
+```
 
 ```{r fig_London_Rents_map_0, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
 
@@ -89,7 +152,8 @@ borough_boundaries <-
 
 londonmap7_diverge2 = c('#943fa6', '#b47bbe', '#d2b4d6', '#eeeeee', '#c3e1db', '#96d3c8', '#63c5b5')
 
-catgreen4 = c('#eeeeee', '#acc1aa', '#739272', '#4a6349')
+#catgreen4 = c('#eeeeee', '#acc1aa', '#739272', '#4a6349')
+catgreen4 = rev(c('#527450', '#759a72', '#a1c09e', '#d8e4d6'))
 
 # Import Region boundaries for UK
 
@@ -103,19 +167,16 @@ south_region_boundaries <-
 Rentals_LAs_geog <- Rentals_LAsEng_Data %>% 
   left_join(LAs_boundaries, by=c("Area_Code"="LAD21CD")) %>%
   mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
-  mutate(Rentals_Cat = cut(Lower_quartile_num, breaks = c(1000, 1250, 1350, 1650, 3000),
+  mutate(Rentals_Cat = cut(Lower_quartile_num, breaks = c(300, 1200, 1350, 1650, 3000),
                              right=FALSE,
-                             labels = c(" 1000 - 1249",
-                                        " 1250 - 1349",
-                                        " 1350 - 1649",
-                                        " 1650 - 3000"))) %>%
-#  filter(!is.na(Rentals_Cat)) %>%
-#    filter(!is.na(BNG_E)) %>%
+                             labels = c("300 -",
+                                        "1200 -",
+                                        "1350 -",
+                                        "1650 -"))) %>%
   data.frame()
 
-#quantile(Rentals_LAs_geog$Lower_quartile_num)
-
 Rentals_South_LAs_map <- Rentals_LAs_geog %>%
+  filter(!is.na(Lower_quartile_num)) %>%
   ggplot()+
   geom_point(aes(x=BNG_E, y=BNG_N,
                  text = paste("LA name: ",  Area_Name,
@@ -131,6 +192,10 @@ Rentals_South_LAs_map <- Rentals_LAs_geog %>%
   theme(panel.background = element_blank())+
   theme(plot.caption = element_text (hjust = 0))+
   theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.text = element_text(size=16)) +
+  theme(legend.title = element_text(size=16)) +
+  theme(legend.key.height= unit(1, 'cm'),
+        legend.key.width= unit(0.7, 'cm')) +
   theme(axis.title.x = element_blank(),
         axis.title.y = element_blank(),
         axis.text.x = element_blank(), 
@@ -138,36 +203,22 @@ Rentals_South_LAs_map <- Rentals_LAs_geog %>%
         axis.ticks.x = element_blank(), 
         axis.ticks.y = element_blank(),
         panel.border = element_rect(colour = "black", fill=NA, size=2))+
-  scale_fill_manual(values = catgreen4) + 
-  labs(title= "Lower quartile monthly rent for 2 bedroom flat, London, 2022", 
+  scale_fill_manual(name = "Monthly rent\n(pounds)", values = catgreen4) + 
+  labs(title= "Lower quartile monthly rent for 2 bedroom flat, London, March 2023", 
        caption = paste0("Source: ONS, Chart: GLA demography")) +
-#  labs(fill = "Monthly rent (£)") +
-  guides(alpha="none") +
+ # labs(fill = "") +
   coord_sf(xlim = c(480000,580000), ylim = c(130000, 220000)) 
-#  annotate(geom = "rect", ymax = 220000, ymin = 130000, xmax = 580000, xmin = 480000, colour = "black", fill = NA) 
 
 Rentals_South_LAs_map
 
-# # Interactive map using ggplotly
-# Rentals_South_LAs_map_int <- ggplotly(Rentals_South_LAs_map, tooltip = "text") %>%
-#   layout(title= list(x = 0.05,
-#                      text = "<b>Lower quartile monthly rent for 2 bedroom flat, London, October 2022<b>",
-#                      font=list(size = 15, family = "Arial")),
-#          font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
-#          legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
-#                      title=list(text='Monthly rent',
-#                                 font = list(family = "Arial", size = 14)),
-#                      font = list(family = "Arial", size = 14))) %>%
-#   # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
-#   layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography",
-#                             showarrow = F, xref='paper', yref='paper',
-#                             font=list(size=14, family = "Arial")),
-#          margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4))
-# Rentals_South_LAs_map_int
+ggsave (filename = (paste0(chart_dir, "Rentals_South_LAs_map.png")),
+         plot = Rentals_South_LAs_map,
+         device = "png",
+         dpi=600,
+         width = 9,
+         height = 5.56,
+         units = "in")
 
-# get error message: 
-# Error in (function (..., deparse.level = 1)  : 
-#  number of columns of matrices must match (see arg 8)
 
 
 ```
@@ -391,27 +442,35 @@ Rents_regions_median_line_int
 
 ## Line plot of lower quartile monthly rent for 2 bedroom flat in England's regions
 
+colour_palette = c("#eb861e", "#9e0059","#d82222", "#5ea15d", "#dee000",  "#63c5b5","#943fa6", "#ff38ba", "#eb861e", "#ee266d","#6da7de")
+
+glimpse(Rentals_Regions_Data)
+
+# specify x axis breaks as a vector
+#datebreaks <- seq(as.Date("2012-10-31"), as.Date("2020-10-31"), by = "2 years")
+
 Rents_regions_LQ_line <- Rentals_Regions_Data %>%
-  filter(Region != "ENGLAND") %>%
-  mutate(Date_factor = as.factor(Date)) %>%
-  mutate(Region_factor = as.factor(Region)) %>%
   ggplot() +
-  geom_line(aes(x = Date, y = Lower_quartile, group = Region_factor, color = Region_factor,
-             text = paste("Date: ", Date_factor,
-                          "<br>Region: ", Region_factor,
-                          "<br>Monthly 2 bed rent: ", round(Lower_quartile, digits = 2)) 
-  )) +
+  geom_line(aes(x = Final_date, y = Lower_quartile, group = Region_factor, color = Region_factor, size=highlight_flag)) +
+  geom_label_repel(aes(x = Final_date, y = Lower_quartile, label = label, color = Region_factor, alpha = highlight_flag), nudge_x = 300)+
+  scale_size_manual( values = c(0.2, 2)) +
+  scale_alpha_manual( values = c(0, 1)) +
   theme_gla() +
-  scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
-   scale_color_manual(name='Region:', values = colour_palette) +
-    theme(legend.title=element_text(size=14, family = "Arial"),
-        legend.text=element_text(size=11, family = "Arial"),
-              legend.position = "right",
-        axis.text.x=element_text(color = "black", 
-                                 size=11, family = "Arial", angle = 45), # vjust=.8, hjust=0.8
-        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+    scale_y_continuous(limits=c(200, 1500), breaks = c(200, 500, 800, 1100, 1400)) +
+ #   scale_x_date(breaks = datebreaks, labels = date_format("%b\n%Y")) +
+#  scale_x_date(breaks = c('2011-10-31','2023-10-31'),  date_labels="%b\n%Y",
+  #            limits = c('2011-10-31', '2023-10-31')) +
+    scale_x_date(date_breaks = "2 years", date_labels="%b\n%Y")+
+#  limits = as.Date(c('2011/10/31', '2023/10/31'
+       #  scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
+   scale_color_manual(values = colour_palette, guide="none") + 
+  theme( legend.position="none",
+    axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial"), # vjust=.8, hjust=0.8, angle = 45
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) + 
   labs(title= "Lower quartile monthly rent for 2 bed flat, 2011 - 2022", 
        caption = paste0("Source: ONS, Chart: GLA demography"))
+Rents_regions_LQ_line
 
 ggsave (filename = (paste0(chart_dir, "Rents_regions_LQ_line.png")),
          plot = Rents_regions_LQ_line,
@@ -420,16 +479,16 @@ ggsave (filename = (paste0(chart_dir, "Rents_regions_LQ_line.png")),
          width = 9,
          height = 5.56,
          units = "in")
-
-Rents_regions_LQ_line_int <- ggplotly(Rents_regions_LQ_line, tooltip = "text") %>%
-  style(hoverlabel = list(bgcolor = "white")) %>%
-  layout(legend=list(title=list(text='Region',
-                                font = list(family = "Arial", size = 16)),  
-                     font = list(family = "Arial", size = 14))) %>%  
-  layout(title= list(x = 0.05,
-                     text = "<b>Lower quartile monthly rent for 2 bed flat, 2018 - 2022<b>", 
-                     font=list(size = 15, family = "Arial")))
-Rents_regions_LQ_line_int
+# 
+# Rents_regions_LQ_line_int <- ggplotly(Rents_regions_LQ_line, tooltip = "text") %>%
+#   style(hoverlabel = list(bgcolor = "white")) %>%
+#   layout(legend=list(title=list(text='Region',
+#                                 font = list(family = "Arial", size = 16)),  
+#                      font = list(family = "Arial", size = 14))) %>%  
+#   layout(title= list(x = 0.05,
+#                      text = "<b>Lower quartile monthly rent for 2 bed flat, 2018 - 2022<b>", 
+#                      font=list(size = 15, family = "Arial")))
+# Rents_regions_LQ_line_int
 
 ```
 
@@ -986,7 +1045,7 @@ Rentals_Boroughs_ind2019_zone_int
 
 ```{r fig_London_Rents_map_3, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
 
-## Interactive map of change in rental costs between 2011 and 2022 in London
+## Interactive map of change in rental costs between 2019 and 2022 in London
 
 Rents_boroughs_indexed2019 <- Rentals_Boroughs_Data_Zone %>%
   filter(Area_Name != "LONDON") %>%
@@ -1021,10 +1080,10 @@ Rentals_Boroughs_change2019_geog <- Rents_boroughs_indexed2019 %>%
 Rentals_Boroughs_change2019_geog_ed <- Rentals_Boroughs_change2019_geog %>% 
   mutate(Rentals_Change_Cat = cut(Indexed_Lower_quartile, breaks = c(100, 104, 106, 108, 120),
                              right=FALSE,
-                             labels = c(" 100 - 103.9",
-                                        " 104 - 105.9",
-                                        " 106 - 107.9",
-                                        " 108 - 120"))) %>%
+                             labels = c("100 -",
+                                        "104 -",
+                                        "106 -",
+                                        "108 -"))) %>%
   data.frame()
 
 #quantile(Rentals_Boroughs_change2019_geog$Indexed_Lower_quartile)
@@ -1048,6 +1107,10 @@ Rentals_Boroughs_change2019_map <- Rentals_Boroughs_change2019_geog_ed %>%
   theme(panel.background = element_blank())+
   theme(plot.caption = element_text (hjust = 0))+
   theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.text = element_text(size=16)) +
+  theme(legend.title = element_text(size=16)) +
+  theme(legend.key.height= unit(1, 'cm'),
+  legend.key.width= unit(0.7, 'cm')) +
   theme(axis.title.x = element_blank(),
         axis.title.y = element_blank(),
         axis.text.x = element_blank(), 
@@ -1055,33 +1118,123 @@ Rentals_Boroughs_change2019_map <- Rentals_Boroughs_change2019_geog_ed %>%
         axis.ticks.x = element_blank(), 
         axis.ticks.y = element_blank())+
   scale_fill_manual(values = catgreen4) + 
-  labs(title= "<b>Change in lower quartile monthly rent for 2 bedroom flat, London, 2019-2022<b>", 
+  labs(title= "Indexed lower quartile monthly rent for 2 bedroom flat, London, 2019-2022", 
        caption = paste0("Source: ONS, Chart: GLA demography")) +
-  labs(fill = "% change")
+  labs(fill = "% cost\nin 2019")
+Rentals_Boroughs_change2019_map
 
-# ggsave (filename = (paste0(chart_dir, "Rentals_Boroughs_change2019_map.png")),
-#          plot = Rentals_Boroughs_change2019_map,
+ggsave (filename = (paste0(chart_dir, "Rentals_Boroughs_change2019_map.png")),
+         plot = Rentals_Boroughs_change2019_map,
+         device = "png",
+         dpi=600,
+         width = 9,
+         height = 5.56,
+         units = "in")
+
+# Interactive map using ggplotly
+# Rentals_Boroughs_change2019_map_int <- ggplotly(Rentals_Boroughs_change2019_map, tooltip = "text") %>%
+#   layout(title= list(x = 0.05,
+#                      text = "Change since 2019 in lower quartile monthly rent for 2 bedroom flat, Oct 2022", 
+#                      font=list(size = 15, family = "Arial")),
+#          font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+#          legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+#                      title=list(text='% change',
+#                                 font = list(family = "Arial", size = 14)),  
+#                      font = list(family = "Arial", size = 14))) %>%  
+#   # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+#   layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography", 
+#                             showarrow = F, xref='paper', yref='paper', 
+#                             font=list(size=14, family = "Arial")), 
+#          margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4)) 
+# Rentals_Boroughs_change2019_map_int
+
+```
+
+
+```{r fig_London_Rents_map_4, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Extended map of indexed rental costs in 2022 in London - New on Jan 25th 2025 using code from above
+
+## NB didn't finish editing code because the data file needed work first
+
+# Rents_LAs_indexed2019 <- Rentals_LAsEng_Data %>%
+#   filter(!grepl('2011', Date)) %>%
+#   filter(!grepl('2012', Date)) %>%
+#   filter(!grepl('2013', Date)) %>% 
+#   filter(!grepl('2014', Date)) %>%
+#   filter(!grepl('2015', Date)) %>%
+#   filter(!grepl('2016', Date)) %>%
+#   filter(!grepl('2017', Date)) %>% 
+#   filter(!grepl('2018', Date)) %>%
+#   mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+#   mutate(Date_factor = as.factor(Date)) %>%
+#   group_by(Area_Code) %>% 
+#   mutate(Indexed_Lower_quartile = (Lower_quartile_num/first(Lower_quartile_num))*100) %>% 
+#   data.frame()
+# 
+# # Import LA boundaries for England and Wales
+# LAs_boundaries <-
+#   st_read("C:/Migration/Migration_R/DATA/Domestic/copied_from_Qdrive_20220614/geographical/LAD_DEC_2021_GB_BUC.shp", quiet = TRUE)
+# 
+# Rents_LAs_indexed2019_geog <- Rents_LAs_indexed2019 %>% 
+#   filter(grepl('E09', Area_Code)) %>%
+#   left_join(borough_boundaries, by=c("Area_Code"="LAD21CD")) %>%
+#   filter(Date == "2022_Oct") %>%
+#    mutate(Rentals_Change_Cat = cut(Indexed_Lower_quartile, breaks = c(100, 104, 106, 108, 120),
+#                              right=FALSE,
+#                              labels = c("100 -",
+#                                         "104 -",
+#                                         "106 -",
+#                                         "108 -"))) %>%
+#   data.frame()
+#   data.frame()
+# 
+# catgreen4 = rev(c('#527450', '#759a72', '#a1c09e', '#d8e4d6'))
+# 
+# # Import Region boundaries for UK
+# 
+# south_region_boundaries <-
+#   st_read("C:/Geographical/England_Region_Boundaries/RGN_DEC_2022_EN_BUC.shp", quiet = TRUE) %>%
+#     mutate(London = ifelse((RGN22CD=="E12000007"), "yes", "no")) %>%
+#     filter(RGN22CD=="E12000006" | RGN22CD=="E12000007" | RGN22CD=="E12000008" )
+# 
+# Rentals_South_change_map <- Rents_LAs_indexed2019_geog %>%
+#   ggplot()+
+#   geom_sf(aes(geometry=geometry, fill=Rentals_Change_Cat),lwd = 0.1, colour = "black" ) +
+#   geom_sf(data = south_region_boundaries, aes(x=LONG, y=LAT, geometry=geometry), alpha = 0.01, lwd = 0.7, colour = "black")+
+#   theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+#   theme(legend.position = "right")+
+#   theme(panel.grid.major = element_blank(), 
+#         panel.grid.minor = element_blank())+
+#   theme(panel.background = element_blank())+
+#   theme(plot.caption = element_text (hjust = 0))+
+#   theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+#   theme(legend.text = element_text(size=16)) +
+#   theme(legend.title = element_text(size=16)) +
+#   theme(legend.key.height= unit(1, 'cm'),
+#         legend.key.width= unit(0.7, 'cm')) +
+#   theme(axis.title.x = element_blank(),
+#         axis.title.y = element_blank(),
+#         axis.text.x = element_blank(), 
+#         axis.text.y = element_blank(), 
+#         axis.ticks.x = element_blank(), 
+#         axis.ticks.y = element_blank(),
+#         panel.border = element_rect(colour = "black", fill=NA, size=2))+
+#   scale_fill_manual(name = "% cost\nin 2019", values = catgreen4) + 
+#   labs(title= "Indexed lower quartile monthly rent for 2 bedroom flat, London, 2019-2022", 
+#        caption = paste0("Source: ONS, Chart: GLA demography")) +
+#  # labs(fill = "") +
+#   coord_sf(xlim = c(480000,580000), ylim = c(130000, 220000)) 
+# 
+# Rentals_South_change_map
+# 
+# ggsave (filename = (paste0(chart_dir, "Rentals_South_change_map.png")),
+#          plot = Rentals_South_change_map,
 #          device = "png",
 #          dpi=600,
 #          width = 9,
 #          height = 5.56,
 #          units = "in")
 
-# Interactive map using ggplotly
-Rentals_Boroughs_change2019_map_int <- ggplotly(Rentals_Boroughs_change2019_map, tooltip = "text") %>%
-  layout(title= list(x = 0.05,
-                     text = "Change since 2019 in lower quartile monthly rent for 2 bedroom flat, Oct 2022", 
-                     font=list(size = 15, family = "Arial")),
-         font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
-         legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
-                     title=list(text='% change',
-                                font = list(family = "Arial", size = 14)),  
-                     font = list(family = "Arial", size = 14))) %>%  
-  # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
-  layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography", 
-                            showarrow = F, xref='paper', yref='paper', 
-                            font=list(size=14, family = "Arial")), 
-         margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4)) 
-Rentals_Boroughs_change2019_map_int
 
 ```
