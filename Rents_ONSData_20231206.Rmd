@@ -1,0 +1,1087 @@
+---
+title: "Rentals cost analysis, Oct 24 and Dec 4 2023"
+output: 
+  html_document:
+    css: Wil_style.css
+    theme: default
+    toc: TRUE
+    toc_float: TRUE
+    number_sections: TRUE
+always_allow_html: yes
+---
+
+```{r setup_1, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(gglaplot)
+library(ggplot2)
+library(data.table)
+library(lubridate)
+library(tidyr)
+library(png)
+library(stringr)
+library(tidyverse)
+library(plotly)
+library(sf)
+library(scales)
+library(htmlwidgets)
+library(ggplot2)
+library(gglaplot)
+library(ggrepel)
+
+
+#devtools::load_all("C:/demogtools/")
+
+data_dir <- 'DATA/'
+chart_dir <- 'C:/Families/Charts/'
+
+
+```
+
+
+
+```{r setup_2, include=FALSE}
+#--------------------------------------------------------------------------------
+
+# DATA FROM ONS WEBSITE
+
+Rentals_Regions_Data <- read.csv(paste0(data_dir,"ONS_Rents_Regions_all.csv")) %>%  
+ data.frame()
+
+Rentals_Boroughs_Data <- read.csv(paste0(data_dir,"ONS_Rents_LAs_all.csv")) %>%  
+ data.frame()
+
+Rentals_LAsEng_Data <- read.csv(paste0(data_dir,"ONS_Rents_LAs_allEng.csv")) %>%  
+ data.frame()
+
+
+# Join London boroughs data with Inner/Outer file
+
+boroughcodes <- read.csv(paste0(data_dir,"InnerLondon.csv")) %>%   
+  data.frame
+
+Rentals_Boroughs_Data_Zone <- Rentals_Boroughs_Data %>%
+  left_join(boroughcodes, by=c("Area_Code"="BoroughCode"))%>% 
+  mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
+  data.frame()
+
+
+# Import LA boundaries for England and Wales
+LAs_boundaries <-
+  st_read("C:/Geographical/Geographies for Rent data from Yiran/ONS_rents_data_GIS_boundary/ONS_Rents_LAs_allEng_GIS_boundary.shp", quiet = TRUE)
+
+borough_boundaries <-
+  st_read("C:/Migration/Migration_R/DATA/Domestic/copied_from_Qdrive_20220614/geographical/LAD_DEC_2021_GB_BUC.shp", quiet = TRUE)
+
+
+# scale_fill_gradient2(low = "#63c5b5", mid = "#eeeeee",  high = "#943fa6", midpoint = 0) +
+
+```
+
+# Current geographical variation
+
+```{r fig_London_Rents_map_0, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## New on December 5th! Using code from Population Patterns file 
+
+## Interactive map of rentals in 2022 in London and SouthEast 
+
+londonmap7_diverge2 = c('#943fa6', '#b47bbe', '#d2b4d6', '#eeeeee', '#c3e1db', '#96d3c8', '#63c5b5')
+
+catgreen4 = c('#eeeeee', '#acc1aa', '#739272', '#4a6349')
+
+# Import Region boundaries for UK
+
+south_region_boundaries <-
+  st_read("C:/Geographical/England_Region_Boundaries/RGN_DEC_2022_EN_BUC.shp", quiet = TRUE) %>%
+    mutate(London = ifelse((RGN22CD=="E12000007"), "yes", "no")) %>%
+    filter(RGN22CD=="E12000006" | RGN22CD=="E12000007" | RGN22CD=="E12000008" )
+
+# Match boundary data with rentals data and create categories for mapping
+
+Rentals_LAs_geog <- Rentals_LAsEng_Data %>% 
+  left_join(LAs_boundaries, by=c("Area_Code"="Area_Code")) %>%
+  mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+  mutate(Rentals_Cat = cut(Lower_quartile_num, breaks = c(1000, 1250, 1350, 1650, 3000),
+                             right=FALSE,
+                             labels = c(" 1000 - 1249",
+                                        " 1250 - 1349",
+                                        " 1350 - 1649",
+                                        " 1650 - 3000"))) %>%
+#  filter(!is.na(Rentals_Cat)) %>%
+#    filter(!is.na(BNG_E)) %>%
+  data.frame()
+
+#quantile(Rentals_LAs_geog$Lower_quartile_num)
+
+Rentals_South_LAs_map <- Rentals_LAs_geog %>%
+  ggplot()+
+  # geom_point(aes(x=BNG_E, y=BNG_N,
+  #                text = paste("LA name: ",  Area_Name,
+  #                              "<br>Lower_quartile monthly rent: ",
+  #                             formatC(Lower_quartile_num, format="f", big.mark=",", digits=2))),
+  #            alpha = 0) +   # alpha = 0 ensures that points are not actually plotted
+   geom_sf(aes(geometry=geometry, fill=Rentals_Cat),lwd = 0.1, colour = "black" ) +
+  geom_sf(data = south_region_boundaries, aes(x=LONG, y=LAT, geometry=geometry), alpha = 0.01, lwd = 0.7, colour = "black")+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.position = "right")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(plot.caption = element_text (hjust = 0))+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.x = element_blank(), 
+        axis.ticks.y = element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, size=2))+
+  scale_fill_manual(values = catgreen4) + 
+  labs(title= "Lower quartile monthly rent for 2 bedroom flat, London, 2022", 
+       caption = paste0("Source: ONS, Chart: GLA demography")) +
+#  labs(fill = "Monthly rent (£)") +
+  guides(alpha="none") +
+  coord_sf(xlim = c(480000,580000), ylim = c(130000, 220000)) 
+#  annotate(geom = "rect", ymax = 220000, ymin = 130000, xmax = 580000, xmin = 480000, colour = "black", fill = NA) 
+
+Rentals_South_LAs_map
+
+# # Interactive map using ggplotly
+# Rentals_South_LAs_map_int <- ggplotly(Rentals_South_LAs_map, tooltip = "text") %>%
+#   layout(title= list(x = 0.05,
+#                      text = "<b>Lower quartile monthly rent for 2 bedroom flat, London, October 2022<b>",
+#                      font=list(size = 15, family = "Arial")),
+#          font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+#          legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+#                      title=list(text='Monthly rent',
+#                                 font = list(family = "Arial", size = 14)),
+#                      font = list(family = "Arial", size = 14))) %>%
+#   # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+#   layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography",
+#                             showarrow = F, xref='paper', yref='paper',
+#                             font=list(size=14, family = "Arial")),
+#          margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4))
+# Rentals_South_LAs_map_int
+
+# get error message: 
+# Error in (function (..., deparse.level = 1)  : 
+#  number of columns of matrices must match (see arg 8)
+
+
+```
+
+
+
+
+
+```{r fig_London_Rents_map_1, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+
+## Previous map of rentals in 2022 in London
+
+# Match boundary data with rentals data and create categories for mapping
+
+Rentals_Boroughs_geog <- Rentals_Boroughs_Data %>% 
+  filter(grepl('E09', Area_Code)) %>%
+  left_join(borough_boundaries, by=c("Area_Code"="LAD21CD")) %>%
+  filter(Date == "2022_Oct") %>%
+  mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+  mutate(Rentals_Cat = cut(Lower_quartile_num, breaks = c(1000, 1250, 1350, 1650, 3000),
+                             right=FALSE,
+                             labels = c(" 1000 - 1249",
+                                        " 1250 - 1349",
+                                        " 1350 - 1649",
+                                        " 1650 - 3000"))) %>%
+  data.frame()
+
+# quantile(Rentals_Boroughs_geog$Lower_quartile_num)
+
+catgreen4 = c('#eeeeee', '#acc1aa', '#739272', '#4a6349')
+
+Rentals_Boroughs_map <- Rentals_Boroughs_geog %>%
+  ggplot()+
+  geom_point(aes(x=BNG_E, y=BNG_N, 
+                 text = paste("Borough: ", Area_Name,  
+                              "<br>Lower_quartile monthly rent: ", 
+                              formatC(Lower_quartile, format="f", big.mark=",", digits=2))),
+             alpha = 0) +   # alpha = 0 ensures that points are not actually plotted
+  geom_sf(aes(geometry=geometry, fill=Rentals_Cat),lwd = 0.2, colour = "black")+
+  #ggla_sf()+
+  #theme_gla()+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.position = "right")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(plot.caption = element_text (hjust = 0))+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.x = element_blank(), 
+        axis.ticks.y = element_blank())+
+  scale_fill_manual(values = catgreen4) + 
+  labs(title= "<b>Lower_quartile monthly rent for 2 bedroom flat, London, 2022<b>", 
+       caption = paste0("Source: ONS, Chart: GLA demography")) +
+  labs(fill = "Monthly rent (£)")
+
+# ggsave (filename = (paste0(chart_dir, "Rentals_Boroughs_value_map.png")),
+#          plot = Rentals_Boroughs_map,
+#          device = "png",
+#          dpi=600,
+#          width = 9,
+#          height = 5.56,
+#          units = "in")
+
+# Interactive map using ggplotly
+Rentals_Boroughs_map_int <- ggplotly(Rentals_Boroughs_map, tooltip = "text") %>%
+  layout(title= list(x = 0.05,
+                     text = "<b>Lower quartile monthly rent for 2 bedroom flat, London, October 2022<b>", 
+                     font=list(size = 15, family = "Arial")),
+         font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+         legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+                     title=list(text='Monthly rent',
+                                font = list(family = "Arial", size = 14)),  
+                     font = list(family = "Arial", size = 14))) %>%  
+  # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+  layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography", 
+                            showarrow = F, xref='paper', yref='paper', 
+                            font=list(size=14, family = "Arial")), 
+         margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4)) 
+Rentals_Boroughs_map_int
+
+```
+
+
+
+```{r fig_London_Ukrainians_map, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Interactive map of adjusted Ukrainian arrivals in London
+
+Ukrainians_Boroughs_Data <- read.csv("C:/Families/Housing/Ukrainians_data.csv") %>%  
+ data.frame()
+
+# Match boundary data with arrivals data and create categories for mapping
+
+Ukrainians_Boroughs_geog <- Ukrainians_Boroughs_Data %>% 
+  left_join(borough_boundaries, by=c("BoroughCode"="LAD21CD")) %>%
+   mutate(UA_Cat = cut(Ukr_Arr_Rate, breaks = c(0, 180, 220, 320, 1000),
+                                  right=FALSE,
+                             labels = c(" 0 - 179",
+                                        " 180 - 219",
+                                        " 220 - 319",
+                                        " 320 - 1000"))) %>%
+  data.frame()
+
+catgreen4 = c('#eeeeee', '#acc1aa', '#739272', '#4a6349')
+
+Ukrainians_Boroughs_map <- Ukrainians_Boroughs_geog %>%
+  ggplot()+
+  geom_point(aes(x=BNG_E, y=BNG_N, 
+                 text = paste("Borough: ", BoroughName,  
+                              "<br>Borough population: ", MYE_Total_Pop_2021,
+                              "<br>Homes for Ukraine Arrivals, Number: ", Ukr_Arr_Nos,
+                              "<br>Homes for Ukraine Arrivals, Rate (per 100,000 residents): ", 
+                              formatC(Ukr_Arr_Rate, format="f", big.mark=",", digits=2))),
+             alpha = 0) +   # alpha = 0 ensures that points are not actually plotted
+  geom_sf(aes(geometry=geometry, fill=UA_Cat),lwd = 0.2, colour = "black")+
+  #ggla_sf()+
+  #theme_gla()+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.position = "right")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(plot.caption = element_text (hjust = 0))+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.x = element_blank(), 
+        axis.ticks.y = element_blank())+
+  scale_fill_manual(values = catgreen4) + 
+  labs(title= "Homes for Ukraine, Arrivals Rate (per 100,000), October 2023", 
+       caption = paste0("Source: ONS, Chart: GLA demography")) +
+  labs(fill = "Homes for Ukraine Arrivals, Rate")
+
+ggsave (filename = (paste0(chart_dir, "Ukrainians_Boroughs_map.png")),
+         plot = Ukrainians_Boroughs_map,
+         device = "png",
+         dpi=600,
+         width = 9,
+         height = 5.56,
+         units = "in")
+
+# Interactive map using ggplotly
+Ukrainians_Boroughs_map_int <- ggplotly(Ukrainians_Boroughs_map, tooltip = "text") %>%
+  layout(title= list(x = 0.05,
+                     text = "<b>Homes for Ukraine, Arrivals Rate (per 100,000), October 2023<b>",
+                     font=list(size = 15, family = "Arial")),
+         font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+         legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+                     title=list(text='Homes for Ukraine Arrivals, Rate',
+                                font = list(family = "Arial", size = 14)),
+                     font = list(family = "Arial", size = 14))) %>%
+  # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+  layout(annotations = list(x = 0.05, y = -0.05, text = "Source: DLUHC; Chart: GLA demography",
+                            showarrow = F, xref='paper', yref='paper',
+                            font=list(size=14, family = "Arial")),
+         margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4))
+Ukrainians_Boroughs_map_int 
+
+
+
+```
+
+# Time trends
+
+```{r fig_Region_Rents_median, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of median monthly rent for 2 bedroom flat in England's regions
+
+colour_palette = c( "#9e0059","#6da7de", "#d82222", "#5ea15d", "#dee000", "#943fa6", "#63c5b5", "#ff38ba", "#eb861e", "#ee266d")
+
+Rents_regions_median_line <- Rentals_Regions_Data %>%
+  filter(Region != "ENGLAND") %>%
+  mutate(Date_factor = as.factor(Date)) %>%
+  mutate(Region_factor = as.factor(Region)) %>%
+  ggplot() +
+  geom_line(aes(x = Date, y = Median, group = Region_factor, color = Region_factor,
+             text = paste("Date: ", Date_factor,
+                          "<br>Region: ", Region_factor,
+                          "<br>Monthly 2 bed rent: ", round(Median, digits = 2)) 
+  )) +
+  theme_gla() +
+  scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
+   scale_color_manual(name='Region:', values = colour_palette) +
+    theme(legend.title=element_text(size=14, family = "Arial"),
+        legend.text=element_text(size=11, family = "Arial"),
+        axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial", angle = 45), # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  labs(title= "Median monthly rent for 2 bed flat, 2011 - 2022", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+# ggsave (filename = (paste0(chart_dir, "Rents_regions_median_line.png")),
+#          plot = Rents_regions_median_line,
+#          device = "png",
+#          dpi=600,
+#          width = 9,
+#          height = 5.56,
+#          units = "in")
+
+Rents_regions_median_line_int <- ggplotly(Rents_regions_median_line, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(legend=list(title=list(text='Region',
+                                font = list(family = "Arial", size = 16)),  
+                     font = list(family = "Arial", size = 14))) %>%  
+  layout(title= list(x = 0.05,
+                     text = "<b>Median monthly rent for 2 bed flat, 2011 - 2022<b>", 
+                     font=list(size = 15, family = "Arial")))
+Rents_regions_median_line_int
+
+```
+
+
+```{r fig_Region_Rents_LQ, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of lower quartile monthly rent for 2 bedroom flat in England's regions
+
+Rents_regions_LQ_line <- Rentals_Regions_Data %>%
+  filter(Region != "ENGLAND") %>%
+  mutate(Date_factor = as.factor(Date)) %>%
+  mutate(Region_factor = as.factor(Region)) %>%
+  ggplot() +
+  geom_line(aes(x = Date, y = Lower_quartile, group = Region_factor, color = Region_factor,
+             text = paste("Date: ", Date_factor,
+                          "<br>Region: ", Region_factor,
+                          "<br>Monthly 2 bed rent: ", round(Lower_quartile, digits = 2)) 
+  )) +
+  theme_gla() +
+  scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
+   scale_color_manual(name='Region:', values = colour_palette) +
+    theme(legend.title=element_text(size=14, family = "Arial"),
+        legend.text=element_text(size=11, family = "Arial"),
+              legend.position = "right",
+        axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial", angle = 45), # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  labs(title= "Lower quartile monthly rent for 2 bed flat, 2011 - 2022", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+ggsave (filename = (paste0(chart_dir, "Rents_regions_LQ_line.png")),
+         plot = Rents_regions_LQ_line,
+         device = "png",
+         dpi=600,
+         width = 9,
+         height = 5.56,
+         units = "in")
+
+Rents_regions_LQ_line_int <- ggplotly(Rents_regions_LQ_line, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(legend=list(title=list(text='Region',
+                                font = list(family = "Arial", size = 16)),  
+                     font = list(family = "Arial", size = 14))) %>%  
+  layout(title= list(x = 0.05,
+                     text = "<b>Lower quartile monthly rent for 2 bed flat, 2018 - 2022<b>", 
+                     font=list(size = 15, family = "Arial")))
+Rents_regions_LQ_line_int
+
+```
+
+```{r fig_Region_Rents_LQ_Ind, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of Rents over time for Regions, indexed to 2011
+
+
+Rents_regions_indexed <- Rentals_Regions_Data  %>%
+  filter(Region != "ENGLAND") %>%
+  mutate(Date_factor = as.factor(Date)) %>%
+  mutate(Region_factor = as.factor(Region)) %>%  
+  mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+  group_by(Area_Code) %>% 
+  mutate(Indexed_Lower_quartile = (Lower_quartile_num/first(Lower_quartile_num))*100) %>% 
+  data.frame()
+  
+Rents_regions_line_indexed <- Rents_regions_indexed %>%
+  ggplot() +
+   geom_line(aes(x = Date_factor, y = Indexed_Lower_quartile, group = Area_Code, color = Region,
+             text = paste("Date  :", Date,
+                          "<br>Region : ", Region,
+                          "<br>Rent as % of value in 2011 ", round(Indexed_Lower_quartile, digits = 1))
+  )) +
+  theme_gla() +
+  theme(legend.title=element_text(size=14, family = "Arial"),
+        legend.text=element_text(size=11, family = "Arial"),
+        legend.position = "right",
+    axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial", angle=45),  # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+   scale_color_manual(name='Region:', values = colour_palette) +
+   scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
+  theme(legend.title=element_text(size=12),
+        legend.text=element_text(size=10)) +
+  geom_hline(yintercept=100)+
+  labs(title= "Lower quartile monthly rent for 2 bed flat, 2011 - 2022 indexed to 2011", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+ggsave (filename = (paste0(chart_dir, "Rents_regions_LQ_line_Indexed.png")),
+         plot = Rents_regions_line_indexed,
+         device = "png",
+         dpi=600,
+         width = 9,
+         height = 5.56,
+         units = "in")
+
+
+Rents_regions_line_indexed_int <- ggplotly(Rents_regions_line_indexed, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(title= list(x = 0.05,
+                     text ="<b>Lower_quartile monthly rent for 2 bed flat, 2011 - 2022 indexed to 2011<b>", 
+   font=list(size = 15, family = "Arial", color = "black", fontface = "bold")),
+          legend=list(title=list(text='Region', font = list(size = 15, family = "Arial", color = "black", fontface = "bold"))), 
+          xaxis = list(title = list(text ='', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))),
+          yaxis = list(title = list(text ='Lower quartile Rent as percentage of value in April 2011', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))))
+ Rents_regions_line_indexed_int
+```
+
+```{r fig_London_Rents_3, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of Rents over time for individual London boroughs
+
+catcolour2 = c('#ee266d', '#6da7de')
+
+Rents_boroughs_line_abs <- Rentals_Boroughs_Data_Zone %>%
+  filter(Area_Name != "LONDON") %>%
+  filter(Area_Name != "Inner London") %>%
+  filter(Area_Name != "Outer London") %>%
+  filter(Area_Name != "City of London") %>%
+  mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
+  mutate(Median_numeric = as.numeric(Median)) %>%
+  mutate(Date_factor = as.factor(Date)) %>%
+  ggplot() +
+  geom_line(aes(x = Date_factor, y = Median_numeric, group = Area_Code, color = Inner_factor,
+             text = paste("Date  :", Date,
+                          "<br>Borough : ", Area_Name,                        
+                          "<br>Monthly 2 bed rent: ", round(Median_numeric, digits = 2)) 
+  )) +
+  theme_gla() +
+  theme(legend.title=element_text(size=14, family = "Arial"),
+        legend.text=element_text(size=11, family = "Arial"),
+        axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial",angle=45),  # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  scale_color_manual(name='London Zone:', values = catcolour2) +
+  scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
+  theme(legend.title=element_text(size=16),
+        legend.text=element_text(size=12)) +
+  labs(title= "Median monthly rent for 2 bed flat, London, 2018 - 2022", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+Rents_boroughs_line_abs_int <- ggplotly(Rents_boroughs_line_abs, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(title= list(x = 0.05, 
+                     text ="<b>Median monthly rent for 2 bed flat, London, 2018 -2022<b>", 
+   font=list(size = 15, family = "Arial", color = "black", fontface = "bold")),
+          legend=list(title=list(text='London Zone', font = list(size = 15, family = "Arial", color = "black", fontface = "bold"))), 
+          xaxis = list(title = list(text ='', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))),
+          yaxis = list(title = list(text ='Median Rent for 2 bed flat', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))))
+Rents_boroughs_line_abs_int
+```
+
+```{r fig_London_Rents_4, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of Rents over time for individual London boroughs, indexed to 2011
+
+catcolour2 = c('#ee266d', '#6da7de')
+
+Rents_boroughs_indexed <- Rentals_Boroughs_Data_Zone %>%
+  filter(Area_Name != "LONDON") %>%
+  filter(Area_Name != "Inner London") %>%
+  filter(Area_Name != "Outer London") %>%
+  filter(Area_Name != "City of London") %>%
+  mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
+  mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+  mutate(Date_factor = as.factor(Date)) %>%
+  group_by(Area_Code) %>% 
+  mutate(Indexed_Lower_quartile = (Lower_quartile_num/first(Lower_quartile_num))*100) %>% 
+  data.frame()
+  
+Rents_boroughs_line_indexed <- Rents_boroughs_indexed %>%
+  ggplot() +
+   geom_line(aes(x = Date_factor, y = Indexed_Lower_quartile, group = Area_Code, color = Inner_factor,
+             text = paste("Date  :", Date,
+                          "<br>Borough : ", Area_Name,
+                          "<br>Rent as % of value in 2011 ", round(Indexed_Lower_quartile, digits = 1))
+  )) +
+  theme_gla() +
+  theme(legend.title=element_text(size=14, family = "Arial"),
+        legend.text=element_text(size=11, family = "Arial"),
+    axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial", angle=45),  # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+   scale_color_manual(name='London Zone:', values = catcolour2) +
+   scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April", "2022_Oct")) +
+  theme(legend.title=element_text(size=16),
+        legend.text=element_text(size=12)) +
+  geom_hline(yintercept=100)+
+  labs(title= "Lower quartile monthly rent for 2 bed flat, London, 2011 - 2022 indexed to 2011", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+
+Rents_boroughs_line_indexed_int <- ggplotly(Rents_boroughs_line_indexed, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(title= list(x = 0.05,
+                     text ="<b>Lower_quartile monthly rent for 2 bed flat, London, 2011 - 2022 indexed to 2011<b>", 
+   font=list(size = 15, family = "Arial", color = "black", fontface = "bold")),
+          legend=list(title=list(text='London Zone', font = list(size = 15, family = "Arial", color = "black", fontface = "bold"))), 
+          xaxis = list(title = list(text ='', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))),
+          yaxis = list(title = list(text ='Lower quartile Rent as percentage of value in April 2011', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))))
+ Rents_boroughs_line_indexed_int
+```
+
+
+
+```{r fig_London_Rents_2, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+
+## Line plot of Lower quartile rent for twobedroom flat for London 2019 - 2022 - for inner and outer London
+
+Rents_Boroughs_zone <- Rentals_Boroughs_Data_Zone %>%
+  filter(Area_Name == "Inner London" | Area_Name == "Outer London") %>%
+  mutate(Inner_factor = case_when(Area_Name == "Inner London" ~ "Inner", 
+                             Area_Name == "Outer London" ~ "Outer",
+                             TRUE ~ "")) %>% 
+  data.frame()
+
+catcolour2 = c('#ee266d', '#6da7de')
+
+Rentals_Boroughs_zone_abs_line <- Rents_Boroughs_zone %>%
+  mutate(Date_factor = as.factor(Date)) %>%
+  mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+  ggplot() +
+  geom_line(aes(x = Date_factor, y = Lower_quartile_num, group = Inner_factor, color = Inner_factor,
+             text = paste("Date: ", Date_factor,
+                          "Zone: ", Inner_factor,
+                          "<br>Monthly 2 bedroom rent: ", round(Lower_quartile_num, digits = 2)) 
+  )) +
+  theme_gla() +
+  theme(axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial",angle=45)) +  # vjust=.8, hjust=0.8
+  scale_color_manual(name='London Zone:', values = catcolour2) +
+  scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April",  "2022_Oct")) +
+  labs(title= "Lower quartile monthly rent for 2 bedroom flat, London, 2019 -2022", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+Rentals_Boroughs_zone_abs_line_int <- ggplotly(Rentals_Boroughs_zone_abs_line, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(title= list(x = 0.05,
+                     text = "<b>Lower quartile monthly rent for 2 bedroom flat, London, 2019 -2022<b>", 
+                     font=list(size = 15, family = "Arial")))
+Rentals_Boroughs_zone_abs_line_int
+
+```
+
+```{r fig_London_Rents_5, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+
+# Plot summary Inner and Outer lines on top of borough data
+
+# Add a variable equivalent to gss_code so can combine the data frames
+Zone_rents <- Rentals_Boroughs_Data %>%
+  filter(Area_Name == "Inner London" | Area_Name == "Outer London") %>%
+  mutate(category = "Zone") %>%
+  mutate(Inner_factor = case_when(Area_Name == "Inner London" ~ "Inner", 
+                             Area_Name == "Outer London" ~ "Outer",
+                             TRUE ~ "")) %>% 
+ mutate(Area_Code = Inner_factor)  %>% 
+  mutate(Area_Name = Inner_factor) %>%
+  mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+  data.frame()
+
+Borough_Rents <- Rentals_Boroughs_Data_Zone %>%
+  filter(Area_Name != "LONDON") %>%
+  filter(Area_Name != "Inner London") %>%
+  filter(Area_Name != "Outer London") %>%
+  filter(Area_Name != "City of London") %>%
+  mutate(category = "borough") %>%
+  mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
+    mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+  select (-c(Inner, BoroughName)) %>%
+   data.frame()
+
+# Combine Borough and Zone data
+merged_Rentals = rbind(Zone_rents, Borough_Rents) %>%  
+mutate(Date_factor = as.factor(Date)) %>%
+ data.frame()
+
+catcolour2 = c('#ee266d', '#6da7de')
+
+
+Rentals_Boroughs_abs_zone <- merged_Rentals %>%
+  ggplot() +
+  geom_line(data=merged_Rentals[merged_Rentals$Area_Code == "Inner", ], size = 1, alpha = 1,
+           aes(x = Date_factor, y = Lower_quartile_num, group = Area_Code, 
+                color = Inner_factor, text = paste("Date: ", Date,
+                                                 "<br>Zone: ", Inner_factor, 
+                                                 "<br>Lower quartile rent: ", round(Lower_quartile_num, digits = 2)))) + 
+  geom_line(data=merged_Rentals[merged_Rentals$Area_Code == "Outer", ], size = 1, alpha = 1,
+             aes(x = Date_factor, y = Lower_quartile_num, group = Area_Code, 
+                color = Inner_factor, text = paste("Date: ", Date,
+                                                 "<br>Zone: ", Inner_factor, 
+                                                 "<br>Lower quartile rent: ", round(Lower_quartile_num, digits = 2)))) + 
+   geom_line(data=merged_Rentals[merged_Rentals$category == "borough", ], size = 0.4, alpha = 0.3,
+                aes(x = Date_factor, y = Lower_quartile_num, group = Area_Code, 
+                color = Inner_factor, text = paste("Date: ", Date,
+                                                 "<br>Borough: ", Area_Name, 
+                                                 "<br>Lower quartile rent: ", round(Lower_quartile_num, digits = 2))) ) + 
+  theme_gla() +
+    theme(axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial",angle=45),  # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  #theme(legend.position='none') +
+  #ylim(25, 35) +
+  theme(legend.title=element_text(size=14, family = "Arial"),
+        legend.text=element_text(size=11, family = "Arial"),
+        axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial"),  #, angle=30, vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  scale_color_manual(name='London Zone:', values = catcolour2) +
+    scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April",  "2022_Oct")) +
+  theme(legend.title=element_text(size=16),
+        legend.text=element_text(size=12)) +
+ # scale_x_discrete(name ="year_factor", breaks=c("1991", "1996", "2001","2006","2011", "2016", "2021")) +
+  labs(title= "Lower quartile monthly rent for 2 bedroom flat, London, 2011 - 2022", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+# ggsave (filename = (paste0(chart_dir, "Rentals_Boroughs_abs_zone.png")),
+#          plot = Rentals_Boroughs_abs_zone,
+#          device = "png",
+#          dpi=600,
+#          width = 9,
+#          height = 5.56,
+#          units = "in")
+
+Rentals_Boroughs_abs_zone_int <- ggplotly(Rentals_Boroughs_abs_zone, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(title= list(x = 0.05,
+                     text ="<b>Lower quartile monthly rent for 2 bedroom flat, London, 2011 - 2022<b>", 
+   font=list(size = 15, family = "Arial", color = "black", fontface = "bold")),
+          legend=list(title=list(text='London Zone', font = list(size = 15, family = "Arial", color = "black", fontface = "bold"))), 
+          xaxis = list(title = list(text ='', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))),
+          yaxis = list(title = list(text ='Lower quartile monthly rent for 2 bedroom flat', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))))
+Rentals_Boroughs_abs_zone_int
+
+```
+
+
+```{r fig_London_Rents_6, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+
+# Plot summary Inner and Outer lines on top of borough data for indexed change
+
+catcolour2 = c('#ee266d', '#6da7de')
+
+merged_Rentals_ed2011 <- merged_Rentals %>%
+  group_by(Area_Code) %>% 
+  mutate(Indexed_Lower_quartile = (Lower_quartile_num/first(Lower_quartile_num))*100) %>% 
+  data.frame()
+
+Rentals_Boroughs_ind2011_zone <- merged_Rentals_ed2011 %>%
+  ggplot() +
+  geom_line(data=merged_Rentals_ed2011[merged_Rentals_ed2011$Area_Code == "Inner", ], size = 1, alpha = 1,
+           aes(x = Date_factor, y = Indexed_Lower_quartile, group = Area_Code, 
+                color = Inner_factor, text = paste("Date: ", Date,
+                                                 "<br>Zone: ", Inner_factor, 
+                                                 "<br>Indexed lower quartile rent: ", round(Indexed_Lower_quartile, digits = 2)))) + 
+  geom_line(data=merged_Rentals_ed2011[merged_Rentals_ed2011$Area_Code == "Outer", ], size = 1, alpha = 1,
+             aes(x = Date_factor, y = Indexed_Lower_quartile, group = Area_Code, 
+                color = Inner_factor, text = paste("Date: ", Date,
+                                                 "<br>Zone: ", Inner_factor, 
+                                                 "<br>Indexed lower quartile rent: ", round(Indexed_Lower_quartile, digits = 2)))) + 
+   geom_line(data=merged_Rentals_ed2011[merged_Rentals_ed2011$category == "borough", ], size = 0.4, alpha = 0.3,
+                aes(x = Date_factor, y = Indexed_Lower_quartile, group = Area_Code, 
+                color = Inner_factor, text = paste("Date: ", Date,
+                                                 "<br>Borough: ", Area_Name, 
+                                                 "<br>Indexed lower quartile rent: ", round(Indexed_Lower_quartile, digits = 2))) ) + 
+  theme_gla() +
+    theme(axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial",angle=45),  # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  #theme(legend.position='none') +
+  #ylim(25, 35) +
+  theme(legend.title=element_text(size=14, family = "Arial"),
+        legend.text=element_text(size=11, family = "Arial"),
+        axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial"),  #, angle=30, vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  scale_color_manual(name='London Zone:', values = catcolour2) +
+    scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April",  "2022_Oct")) +
+  theme(legend.title=element_text(size=16),
+        legend.text=element_text(size=12)) +
+ # scale_x_discrete(name ="year_factor", breaks=c("1991", "1996", "2001","2006","2011", "2016", "2021")) +
+  labs(title= "Indexed lower_quartile monthly rent for 2 bedroom flat, London, 2011 - 2022", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+# ggsave (filename = (paste0(chart_dir, "Rentals_Boroughs_ind2011_zone.png")),
+#          plot = Rentals_Boroughs_ind2011_zone,
+#          device = "png",
+#          dpi=600,
+#          width = 9,
+#          height = 5.56,
+#          units = "in")
+
+Rentals_Boroughs_ind2011_zone_int <- ggplotly(Rentals_Boroughs_ind2011_zone, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(title= list(x = 0.05,
+                     text ="<b>Indexed lower quartile monthly rent for 2 bedroom flat, London, 2011 - 2022<b>", 
+   font=list(size = 15, family = "Arial", color = "black", fontface = "bold")),
+          legend=list(title=list(text='London Zone', font = list(size = 15, family = "Arial", color = "black", fontface = "bold"))), 
+          xaxis = list(title = list(text ='', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))),
+          yaxis = list(title = list(text ='Indexed lower quartile monthly rent for 2 bedroom flat', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))))
+Rentals_Boroughs_ind2011_zone_int
+
+
+```
+
+
+```{r fig_London_Rents_map_2, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Interactive map of change in rental costs between 2011 and 2022 in London
+
+Rents_boroughs_indexed2011 <- Rentals_Boroughs_Data_Zone %>%
+  filter(Area_Name != "LONDON") %>%
+  filter(Area_Name != "Inner London") %>%
+  filter(Area_Name != "Outer London") %>%
+  filter(Area_Name != "City of London") %>%
+  mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
+  mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+  mutate(Date_factor = as.factor(Date)) %>%
+  group_by(Area_Code) %>% 
+  mutate(Indexed_Lower_quartile = (Lower_quartile_num/first(Lower_quartile_num))*100) %>% 
+  data.frame()
+
+#summary(Rents_boroughs_indexed$Indexed_Lower_quartile)
+
+# Match boundary data with rentals data and create categories for mapping
+
+Rentals_Boroughs_change2011_geog <- Rents_boroughs_indexed2011 %>% 
+  filter(grepl('E09', Area_Code)) %>%
+  left_join(borough_boundaries, by=c("Area_Code"="LAD21CD")) %>%
+  filter(Date == "2022_Oct") %>%
+  data.frame()
+
+Rentals_Boroughs_change2011_geog_ed <- Rentals_Boroughs_change2011_geog %>% 
+  mutate(Rentals_Change_Cat = cut(Indexed_Lower_quartile, breaks = c(110, 135, 140, 150, 160),
+                             right=FALSE,
+                             labels = c(" 110 - 134",
+                                        " 135 - 139",
+                                        " 140 - 149",
+                                        " 150 - 160"))) %>%
+  data.frame()
+
+#quantile(Rentals_Boroughs_change_geog$Indexed_Lower_quartile)
+
+catgreen4 = c('#eeeeee', '#acc1aa', '#739272', '#4a6349')
+
+Rentals_Boroughs_change2011_map <- Rentals_Boroughs_change2011_geog_ed %>%
+  ggplot()+
+  geom_point(aes(x=BNG_E, y=BNG_N, 
+                 text = paste("Borough: ", Area_Name,  
+                              "<br>Change in lower_quartile monthly rent: ", 
+                              format(Indexed_Lower_quartile, format="f", big.mark=",", digits=2))),
+             alpha = 0) +   # alpha = 0 ensures that points are not actually plotted
+  geom_sf(aes(geometry=geometry, fill=Rentals_Change_Cat),lwd = 0.2, colour = "black")+
+  #ggla_sf()+
+  #theme_gla()+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.position = "right")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(plot.caption = element_text (hjust = 0))+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.x = element_blank(), 
+        axis.ticks.y = element_blank())+
+  scale_fill_manual(values = catgreen4) + 
+  labs(title= "Change in lower quartile monthly rent for 2 bedroom flat, London, 2011-2022", 
+       caption = paste0("Source: ONS, Chart: GLA demography")) +
+  labs(fill = "% change")
+
+# ggsave (filename = (paste0(chart_dir, "Rentals_Boroughs_change2011_map.png")),
+#          plot = Rentals_Boroughs_change2011_map,
+#          device = "png",
+#          dpi=600,
+#          width = 9,
+#          height = 5.56,
+#          units = "in")
+
+# Interactive map using ggplotly
+Rentals_Boroughs_change2011_map_int <- ggplotly(Rentals_Boroughs_change2011_map, tooltip = "text") %>%
+  layout(title= list(x = 0.05,
+                     text = "<b>Change since 2011 in lower quartile monthly rent for 2 bedroom flat, Oct 2022<b>", 
+                     font=list(size = 15, family = "Arial")),
+         font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+         legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+                     title=list(text='% change',
+                                font = list(family = "Arial", size = 14)),  
+                     font = list(family = "Arial", size = 14))) %>%  
+  # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+  layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography", 
+                            showarrow = F, xref='paper', yref='paper', 
+                            font=list(size=14, family = "Arial")), 
+         margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4)) 
+Rentals_Boroughs_change2011_map_int
+
+```
+
+```{r fig_London_Rents_7, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+
+# Plot summary Inner and Outer lines on top of borough data for indexed change since 2019
+
+catcolour2 = c('#ee266d', '#6da7de')
+
+
+merged_Rentals_ed2019 <- merged_Rentals %>%
+  group_by(Area_Code) %>% 
+  filter(!grepl('2011', Date)) %>%
+  filter(!grepl('2012', Date)) %>%
+  filter(!grepl('2013', Date)) %>% 
+  filter(!grepl('2014', Date)) %>%
+  filter(!grepl('2015', Date)) %>%
+  filter(!grepl('2016', Date)) %>%
+  filter(!grepl('2017', Date)) %>% 
+  filter(!grepl('2018', Date)) %>%
+  group_by(Area_Code) %>% 
+  mutate(Indexed_Lower_quartile = (Lower_quartile_num/first(Lower_quartile_num))*100) %>% 
+  data.frame()
+
+
+Rentals_Boroughs_ind2019_zone <- merged_Rentals_ed2019 %>%
+  ggplot() +
+  geom_line(data=merged_Rentals_ed2019[merged_Rentals_ed2019$Area_Code == "Inner", ], size = 1, alpha = 1,
+           aes(x = Date_factor, y = Indexed_Lower_quartile, group = Area_Code, 
+                color = Inner_factor, text = paste("Date: ", Date,
+                                                 "<br>Zone: ", Inner_factor, 
+                                                 "<br>Indexed lower quartile rent: ", round(Indexed_Lower_quartile, digits = 2)))) + 
+  geom_line(data=merged_Rentals_ed2019[merged_Rentals_ed2019$Area_Code == "Outer", ], size = 1, alpha = 1,
+             aes(x = Date_factor, y = Indexed_Lower_quartile, group = Area_Code, 
+                color = Inner_factor, text = paste("Date: ", Date,
+                                                 "<br>Zone: ", Inner_factor, 
+                                                 "<br>Indexed lower quartile rent: ", round(Indexed_Lower_quartile, digits = 2)))) + 
+   geom_line(data=merged_Rentals_ed2019[merged_Rentals_ed2019$category == "borough", ], size = 0.4, alpha = 0.3,
+                aes(x = Date_factor, y = Indexed_Lower_quartile, group = Area_Code, 
+                color = Inner_factor, text = paste("Date: ", Date,
+                                                 "<br>Borough: ", Area_Name, 
+                                                 "<br>Indexed lower quartile rent: ", round(Indexed_Lower_quartile, digits = 2))) ) + 
+  theme_gla() +
+    theme(axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial",angle=45),  # vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  theme(legend.title=element_text(size=14, family = "Arial"),
+        legend.text=element_text(size=11, family = "Arial"),
+        axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial"),  #, angle=30, vjust=.8, hjust=0.8
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) +
+  scale_color_manual(name='London Zone:', values = catcolour2) +
+   # scale_x_discrete(breaks=c("2011_April", "2013_April", "2015_April","2017_April","2019_April", "2021_April",  "2022_Oct")) +
+  theme(legend.title=element_text(size=16),
+        legend.text=element_text(size=12)) +
+  labs(title= "Indexed lower_quartile monthly rent for 2 bedroom flat, London, 2019 -2022", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+
+# ggsave (filename = (paste0(chart_dir, "Rentals_Boroughs_ind2019_zone.png")),
+#          plot = Rentals_Boroughs_ind2019_zone,
+#          device = "png",
+#          dpi=600,
+#          width = 9,
+#          height = 5.56,
+#          units = "in")
+
+Rentals_Boroughs_ind2019_zone_int <- ggplotly(Rentals_Boroughs_ind2019_zone, tooltip = "text") %>%
+  style(hoverlabel = list(bgcolor = "white")) %>%
+  layout(title= list(x = 0.05,
+                     text ="<b>Indexed lower quartile monthly rent for 2 bedroom flat, London, 2019 -2022<b>", 
+   font=list(size = 15, family = "Arial", color = "black", fontface = "bold")),
+          legend=list(title=list(text='London Zone', font = list(size = 15, family = "Arial", color = "black", fontface = "bold"))), 
+          xaxis = list(title = list(text ='', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))),
+          yaxis = list(title = list(text ='Indexed lower quartile monthly rent for 2 bedroom flat', 
+                                   font = list(size = 15, family = "Arial", color = "black", 
+                                               fontface = "bold"))))
+Rentals_Boroughs_ind2019_zone_int
+
+```
+
+
+```{r fig_London_Rents_map_3, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Interactive map of change in rental costs between 2011 and 2022 in London
+
+Rents_boroughs_indexed2019 <- Rentals_Boroughs_Data_Zone %>%
+  filter(Area_Name != "LONDON") %>%
+  filter(Area_Name != "Inner London") %>%
+  filter(Area_Name != "Outer London") %>%
+  filter(Area_Name != "City of London") %>%
+  filter(!grepl('2011', Date)) %>%
+  filter(!grepl('2012', Date)) %>%
+  filter(!grepl('2013', Date)) %>% 
+  filter(!grepl('2014', Date)) %>%
+  filter(!grepl('2015', Date)) %>%
+  filter(!grepl('2016', Date)) %>%
+  filter(!grepl('2017', Date)) %>% 
+  filter(!grepl('2018', Date)) %>%
+  mutate(Inner_factor= recode(Inner, "1"="Inner", "0"="Outer")) %>%
+  mutate(Lower_quartile_num = as.numeric(Lower_quartile)) %>%
+  mutate(Date_factor = as.factor(Date)) %>%
+  group_by(Area_Code) %>% 
+  mutate(Indexed_Lower_quartile = (Lower_quartile_num/first(Lower_quartile_num))*100) %>% 
+  data.frame()
+
+#summary(Rents_boroughs_indexed2019$Indexed_Lower_quartile)
+
+# Match boundary data with rentals data and create categories for mapping
+
+Rentals_Boroughs_change2019_geog <- Rents_boroughs_indexed2019 %>% 
+  filter(grepl('E09', Area_Code)) %>%
+  left_join(borough_boundaries, by=c("Area_Code"="LAD21CD")) %>%
+  filter(Date == "2022_Oct") %>%
+  data.frame()
+
+Rentals_Boroughs_change2019_geog_ed <- Rentals_Boroughs_change2019_geog %>% 
+  mutate(Rentals_Change_Cat = cut(Indexed_Lower_quartile, breaks = c(100, 104, 106, 108, 120),
+                             right=FALSE,
+                             labels = c(" 100 - 103.9",
+                                        " 104 - 105.9",
+                                        " 106 - 107.9",
+                                        " 108 - 120"))) %>%
+  data.frame()
+
+#quantile(Rentals_Boroughs_change2019_geog$Indexed_Lower_quartile)
+
+catgreen4 = c('#eeeeee', '#acc1aa', '#739272', '#4a6349')
+
+Rentals_Boroughs_change2019_map <- Rentals_Boroughs_change2019_geog_ed %>%
+  ggplot()+
+  geom_point(aes(x=BNG_E, y=BNG_N, 
+                 text = paste("Borough: ", Area_Name,  
+                              "<br>Change since 2019 in lower_quartile monthly rent: ", 
+                              format(Indexed_Lower_quartile, format="f", big.mark=",", digits=2))),
+             alpha = 0) +   # alpha = 0 ensures that points are not actually plotted
+  geom_sf(aes(geometry=geometry, fill=Rentals_Change_Cat),lwd = 0.2, colour = "black")+
+  #ggla_sf()+
+  #theme_gla()+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(legend.position = "right")+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  theme(panel.background = element_blank())+
+  theme(plot.caption = element_text (hjust = 0))+
+  theme(plot.title = element_text(size = 16, hjust = 0.5)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.x = element_blank(), 
+        axis.ticks.y = element_blank())+
+  scale_fill_manual(values = catgreen4) + 
+  labs(title= "<b>Change in lower quartile monthly rent for 2 bedroom flat, London, 2019-2022<b>", 
+       caption = paste0("Source: ONS, Chart: GLA demography")) +
+  labs(fill = "% change")
+
+# ggsave (filename = (paste0(chart_dir, "Rentals_Boroughs_change2019_map.png")),
+#          plot = Rentals_Boroughs_change2019_map,
+#          device = "png",
+#          dpi=600,
+#          width = 9,
+#          height = 5.56,
+#          units = "in")
+
+# Interactive map using ggplotly
+Rentals_Boroughs_change2019_map_int <- ggplotly(Rentals_Boroughs_change2019_map, tooltip = "text") %>%
+  layout(title= list(x = 0.05,
+                     text = "Change since 2019 in lower quartile monthly rent for 2 bedroom flat, Oct 2022", 
+                     font=list(size = 15, family = "Arial")),
+         font=list(size = 14, family = "Arial", color = "black", fontface = "bold"),
+         legend=list(orientation = "v", xanchor = "center", x = 1.1, y = 0.3,
+                     title=list(text='% change',
+                                font = list(family = "Arial", size = 14)),  
+                     font = list(family = "Arial", size = 14))) %>%  
+  # add_annotations(text="", showarrow=FALSE, legendtitle=TRUE) %>%
+  layout(annotations = list(x = 0.05, y = -0.05, text = "Source: ONS; Chart: GLA demography", 
+                            showarrow = F, xref='paper', yref='paper', 
+                            font=list(size=14, family = "Arial")), 
+         margin = list(l = 0,r = 0,  b =40,  t = 70,  pad = 4)) 
+Rentals_Boroughs_change2019_map_int
+
+```
