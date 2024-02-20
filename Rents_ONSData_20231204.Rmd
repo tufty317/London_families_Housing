@@ -55,6 +55,34 @@ Rentals_Regions_Data <- read.csv(paste0(data_dir,"ONS_Rents_Regions_all.csv")) %
                          as.character(Region_factor), NA_character_)) %>%
  data.frame()
 
+
+
+#------------------------------------------------------------------
+# New data on 20th Feb 
+Rentals_Regions_NewData <- read.csv(paste0(data_dir,"ONS_Rents_Regions_NewData.csv"), header = TRUE) %>% 
+  data.frame()
+
+# convert data from wide to long format
+Rentals_Regions_NewData_long <- Rentals_Regions_NewData %>% 
+  pivot_longer(
+    cols = `North.East`:`South.West`, 
+    names_to = "Region",
+    values_to = "Price") %>%
+ mutate(New_region =  gsub("\\.", " ", Region)) %>%
+   mutate(Final_date = as.Date(New_date, format = "%d/%m/%Y")) %>%
+     mutate(highlight_flag = ifelse(New_region == 'London'|New_region == 'South East'|New_region == 'East of England', T, F)) %>%      mutate(Region_factor = as.factor(New_region)) %>%
+      group_by(Region_factor) %>% 
+ mutate(label = if_else(Final_date == max(Final_date), 
+                         as.character(Region_factor), NA_character_)) %>%
+ data.frame()
+
+
+# -------------------------------------------------------------
+
+
+
+
+
 Rentals_Boroughs_Data <- read.csv(paste0(data_dir,"ONS_Rents_LAs_all.csv")) %>%  
  data.frame()
 
@@ -492,6 +520,41 @@ ggsave (filename = (paste0(chart_dir, "Rents_regions_LQ_line.png")),
 
 ```
 
+
+```{r fig_Region_Rents_LQ_NewData, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
+
+## Line plot of monthly rent in England's regions, using new data on 20th Feb
+
+colour_palette = c("#eb861e", "#9e0059","#d82222", "#5ea15d", "#dee000",  "#63c5b5","#943fa6", "#ff38ba", "#eb861e", "#ee266d","#6da7de")
+
+Rents_regions_LQ_line_NewData <- Rentals_Regions_NewData_long %>%
+  ggplot() +
+  geom_line(aes(x = Final_date, y = Price, group = Region_factor, color = Region_factor, size=highlight_flag)) +
+  geom_label_repel(aes(x = Final_date, y = Price, label = label, color = Region_factor, alpha = highlight_flag), nudge_x = 300)+
+  scale_size_manual( values = c(0.2, 2)) +
+  scale_alpha_manual( values = c(0, 1)) +
+  theme_gla() +
+    scale_x_date(date_breaks = "2 years", date_labels="%b\n%Y")+
+   scale_color_manual(values = colour_palette, guide="none") + 
+  theme( legend.position="none",
+    axis.text.x=element_text(color = "black", 
+                                 size=11, family = "Arial"), # vjust=.8, hjust=0.8, angle = 45
+        axis.text.y=element_text(color = "black", size=11, family = "Arial")) + 
+  labs(title= "Average Price Index of Private Rents, January 2015 to September 2023", 
+       caption = paste0("Source: ONS, Chart: GLA demography"))
+Rents_regions_LQ_line_NewData
+
+ggsave (filename = (paste0(chart_dir, "Rents_regions_LQ_line_NewData.png")),
+         plot = Rents_regions_LQ_line_NewData,
+         device = "png",
+         dpi=600,
+         width = 9,
+         height = 5.56,
+         units = "in")
+
+
+```
+
 ```{r fig_Region_Rents_LQ_Ind, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
 
 ## Line plot of Rents over time for Regions, indexed to 2011
@@ -659,7 +722,6 @@ Rents_boroughs_line_indexed_int <- ggplotly(Rents_boroughs_line_indexed, tooltip
 
 ```{r fig_London_Rents_2, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
 
-
 ## Line plot of Lower quartile rent for twobedroom flat for London 2019 - 2022 - for inner and outer London
 
 Rents_Boroughs_zone <- Rentals_Boroughs_Data_Zone %>%
@@ -698,7 +760,6 @@ Rentals_Boroughs_zone_abs_line_int
 ```
 
 ```{r fig_London_Rents_5, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
-
 
 # Plot summary Inner and Outer lines on top of borough data
 
