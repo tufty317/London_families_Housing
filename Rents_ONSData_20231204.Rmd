@@ -70,7 +70,7 @@ Rentals_Regions_NewData_long <- Rentals_Regions_NewData %>%
     values_to = "Price") %>%
  mutate(New_region =  gsub("\\.", " ", Region)) %>%
    mutate(Final_date = as.Date(New_date, format = "%d/%m/%Y")) %>%
-     mutate(highlight_flag = ifelse(New_region == 'London'|New_region == 'South East'|New_region == 'East of England', T, F)) %>%      mutate(Region_factor = as.factor(New_region)) %>%
+     mutate(highlight_flag = ifelse(New_region == 'London'|New_region == 'South East'|New_region == 'East', T, F)) %>%      mutate(Region_factor = as.factor(New_region)) %>%
       group_by(Region_factor) %>% 
  mutate(label = if_else(Final_date == max(Final_date), 
                          as.character(Region_factor), NA_character_)) %>%
@@ -525,7 +525,7 @@ ggsave (filename = (paste0(chart_dir, "Rents_regions_LQ_line.png")),
 
 ## Line plot of monthly rent in England's regions, using new data on 20th Feb
 
-colour_palette = c("#eb861e", "#9e0059","#d82222", "#5ea15d", "#dee000",  "#63c5b5","#943fa6", "#ff38ba", "#eb861e", "#ee266d","#6da7de")
+colour_palette = c("#eb861e","#6da7de", "#943fa6", "#d82222", "#5ea15d","#63c5b5", "#dee000",   "#ff38ba", "#ee266d")
 
 Rents_regions_LQ_line_NewData <- Rentals_Regions_NewData_long %>%
   ggplot() +

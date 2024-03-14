@@ -232,9 +232,9 @@ ggsave (filename = (paste0(chart_dir, "Purchase_ratio_South_LAs_map.png")),
 
 ```{r fig_Region_Rents_LQ, fig.height = 5.56, fig.width = 9,  echo=FALSE, warning=FALSE, message=FALSE}
 
-## Line plot of lower quartile monthly rent for 2 bedroom flat in England's regions
+## Line plot of lower quartile house price to lower quartile gross annual earnings in England's regions
 
-colour_palette = c( "#9e0059","#6da7de", "#d82222", "#5ea15d", "#dee000", "#943fa6", "#63c5b5", "#ff38ba", "#eb861e", "#ee266d")
+colour_palette = c( "#eb861e", "#6da7de", "#943fa6", "#5ea15d", "#dee000","#63c5b5", "#d82222",  "#ff38ba",  "#ee266d", "#9e0059")
 
 Ratio_regions_line <- Purchase_Regions_Data_long_ed %>%
   filter(grepl('E12000', Code)) %>%
@@ -247,8 +247,7 @@ Ratio_regions_line <- Purchase_Regions_Data_long_ed %>%
   geom_label_repel(aes(x = Year, y = Ratio, label = label, color = Region_factor, alpha = highlight_flag), nudge_x = 0.5)+
       scale_y_continuous(limits=c(3, NA), breaks = c(3, 6, 9, 12, 15)) +
       scale_x_continuous(limits=c(2011, 2023), breaks = c(2011, 2014, 2017, 2020, 2022)) +
-    scale_color_manual(name='', values = colour_palette) +
-    scale_color_discrete(guide = FALSE) +
+    scale_color_manual(name='', values = colour_palette, guide = FALSE) +
     scale_size_manual( values = c(0.2, 2), guide = FALSE) +
    scale_alpha_manual( values = c(0, 1), guide = FALSE) +
     theme(plot.title = element_text(size = 16, hjust = 0.5)) +
